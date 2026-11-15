@@ -384,16 +384,25 @@ function newCharacter(custom, kid = false) {
   return next ? world.add(next) : null;
 }
 
+/** Everyone who is in the main window's scene right now, or about to be. */
+const inMainScene = (id) => id === world.mainId || id === otherId || id === engagedId;
+
 /**
- * Someone for `actor` to run into. The director may ask for a character who already exists,
- * so storylines can cross; otherwise a new face, and once the cast runs out, someone already met.
+ * Someone for `actor` to run into. Nobody is ever on screen twice: a person who is in the main
+ * scene, in the middle of another side-story moment, or showing in their own side window is not
+ * available. The director may ask for a character who already exists, so storylines can cross;
+ * otherwise a new face, and once the cast runs out, someone already met who is off screen.
+ * Only if there is truly nobody else may the main story take someone out of their side window,
+ * and then that window closes while they are in the main scene (see refresh()).
  */
-function someoneToMeet(actor, custom, existingId) {
-  const free = (c) => c !== actor && c.characterId !== world.mainId && c.characterId !== engagedId && !busy.has(c.characterId);
+function someoneToMeet(actor, custom, existingId, forMain = false) {
+  const free = (c) => c !== actor && !inMainScene(c.characterId) && !busy.has(c.characterId) && !heldBack.has(c.characterId);
+  const offScreen = (c) => free(c) && !sidePanels.has(c.characterId);
   const known = existingId ? world.get(existingId) : null;
-  if (known && free(known)) return known;
-  const others = world.list().filter(free);
-  return newCharacter(custom, actor.kid) ?? pick(others.filter((c) => c.kid === actor.kid)) ?? pick(others) ?? null;
+  if (known && offScreen(known)) return known;
+  const others = world.list().filter(offScreen);
+  const found = newCharacter(custom, actor.kid) ?? pick(others.filter((c) => c.kid === actor.kid)) ?? pick(others) ?? null;
+  return found ?? (forMain ? pick(world.list().filter(free)) ?? null : null);
 }
 
 function setCaption(text, detail = "") {
@@ -418,7 +427,9 @@ function refresh() {
   for (const c of world.list()) {
     // During the day a side window exists only while its character carries a Monster.
     // In the evening everyone we met, outside the family, gets a window.
-    const isSide = evening ? !isFamily(c) : c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE && !heldBack.has(c.characterId);
+    // Never while they are in the main scene: nobody is on screen twice.
+    const isSide = evening ? !isFamily(c)
+      : c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE && !heldBack.has(c.characterId) && !inMainScene(c.characterId);
     if (isSide && !sidePanels.has(c.characterId) && sidePanels.size < MAX_SIDES) {
       const panel = new Panel(0.78);
       // The window branches out from whoever gave this person their Monster (or from the main window).
@@ -441,7 +452,7 @@ function refresh() {
     }
     if (!isSide && sidePanels.has(c.characterId)) {
       const entry = sidePanels.get(c.characterId);
-      if (evening || c.storyMode !== AI_SIDE_STORY) closeSide(c.characterId); // back with the family, or in the main story
+      if (evening || c.storyMode !== AI_SIDE_STORY || inMainScene(c.characterId)) closeSide(c.characterId); // back with the family, or in the main scene
       else if (!entry.closing) {
         // Monster gone: let the dissolve play, then the window leaves the network.
         entry.closing = true;
@@ -472,6 +483,7 @@ function refresh() {
       lead.activeWindowId = "window_main";
     }
   }
+  for (const id of sidePanels.keys()) if (inMainScene(id) && !evening) console.error("[ripple] on screen twice:", id);
   drawHud();
   arrangeWindows();
   // Now that every window is in place, let any newly spawned Monster split off and travel to its new host.
@@ -670,7 +682,7 @@ function predictTypes(actor, other, action) {
  */
 async function sideBeat() {
   const carriers = world.list().filter((c) => c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE
-    && !heldBack.has(c.characterId) && !(phase === "dinner" && isFamily(c)));
+    && !heldBack.has(c.characterId) && !inMainScene(c.characterId) && !busy.has(c.characterId) && !(phase === "dinner" && isFamily(c)));
   if (!carriers.length) return;
   sideTurn++;
   let reserved = [];
@@ -716,12 +728,13 @@ async function planEncounter(actor) {
   const plan = await askDirector({ mode: "main", actorId: actor.characterId });
   let recipient = null, scenario = null;
   if (plan?.place && plan?.provocation && plan?.caption && validChoices(plan.choices)) {
-    recipient = someoneToMeet(actor, plan.other, plan.otherId);
+    recipient = someoneToMeet(actor, plan.other, plan.otherId, true);
     scenario = { place: plan.place, visual: "{r} " + plan.provocation, caption: plan.caption, choices: plan.choices };
   }
-  recipient ??= someoneToMeet(actor);
+  recipient ??= someoneToMeet(actor, undefined, undefined, true);
   if (!recipient) return null;
   engagedId = recipient.characterId; // reserved: side stories leave this person alone
+  refresh(); // if they had a side window, it closes now so they are never on screen twice
   return { actorId: actor.characterId, recipient, scenario: scenario ?? scenarioFor(actor) };
 }
 
