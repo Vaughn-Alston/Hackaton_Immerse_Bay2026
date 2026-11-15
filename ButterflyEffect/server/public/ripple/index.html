@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Ripple</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0c0c0e; color: #e8e6e3; font: 15px/1.4 system-ui, sans-serif; }
+  canvas { display: block; }
+  #bar { position: fixed; left: 0; right: 0; top: 0; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+         padding: 10px 14px; background: rgba(12, 12, 14, .8); }
+  #bar button { font: inherit; padding: 9px 16px; border-radius: 8px; border: 1px solid #3a3a40; background: #18181c;
+                color: inherit; cursor: pointer; opacity: 1; width: auto; }
+  #bar button:hover:not(:disabled) { border-color: #c2452d; }
+  #bar button:disabled { opacity: .45; cursor: default; }
+  #status { color: #b9b6ae; }
+  #caption { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px; background: rgba(12, 12, 14, .8); color: #b9b6ae; }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="bar">
+  <button id="begin">Begin</button>
+  <button id="stop" disabled>Stop</button>
+  <span id="xr"></span>
+  <span id="status">idle</span>
+</div>
+<div id="caption"></div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

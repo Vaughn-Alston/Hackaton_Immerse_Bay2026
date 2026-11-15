@@ -1,0 +1,202 @@
+{
+  "monster": "a tall, hunched, shadowy humanoid figure made of dense matte-black shadow, with a clearly defined head, broad shoulders and long thin arms, two small glowing ember-red eyes, faint smoke drifting from its edges, no clothes, no mouth, no teeth, silent and almost human",
+  "style": "Third-person cinematic camera, never first-person, the person and the shadow figure both clearly readable in the same frame. Realistic acting, subtle facial expressions, grounded psychological horror, naturalistic cinematic lighting, shallow depth of field, muted film palette, photoreal, 35mm film look.",
+  "start": "road",
+  "nodes": [
+    {
+      "id": "road",
+      "transition": "shot",
+      "caption": "Golden hour. A tired man is driving home when another car cuts into his lane.",
+      "prompt": "The camera stays with the tired man in his forties in the wrinkled office shirt as he drives a grey sedan through golden-hour city traffic, seen from a three-quarter side angle through the driver's side window, his face, upper body and hands on the steering wheel clearly visible. A silver hatchback driven by a woman in her forties in a navy blazer swerves into his lane ahead and he brakes hard; his jaw tightens, his brow furrows, he breathes sharply through his nose and his knuckles whiten on the wheel. Rising slowly from the dark rear seat behind his shoulder is {monster}; it leans toward him and its eyes brighten as his frustration builds. Warm low sun rakes across the dashboard, minimal window glare, slow steady tracking shot alongside the car. {style}",
+      "choices": [
+        {
+          "label": "Tailgate the other car to show him how it feels.",
+          "next": "road_tailgate"
+        },
+        {
+          "label": "Lean on the horn and shout at the driver.",
+          "next": "road_honk"
+        },
+        {
+          "label": "Take a breath, ease off, and let the car go.",
+          "next": "road_calm"
+        }
+      ]
+    },
+    {
+      "id": "road_tailgate",
+      "transition": "shot",
+      "caption": "He closes the gap until she can see nothing but his grille. The anger rides forward into her car.",
+      "prompt": "The same tired man in the wrinkled office shirt drives his grey sedan in golden-hour traffic, seen from the same three-quarter side angle through the driver's window. He accelerates and holds his car aggressively close behind the silver hatchback, eyes locked forward, jaw clenched, shoulders rigid. Behind his shoulder, {monster} has grown taller and broader, filling the rear of the car, its long arms resting on the back of his seat and its ember eyes burning brighter. Through the windscreen the woman in the navy blazer driving the hatchback glances nervously into her mirror, her face tightening, as a long arm of shadow stretches forward from his car toward hers. {style}",
+      "holdSeconds": 12,
+      "next": "office"
+    },
+    {
+      "id": "road_honk",
+      "transition": "shot",
+      "caption": "He hammers the horn and shouts through the glass. The anger rides forward into her car.",
+      "prompt": "The same tired man in the wrinkled office shirt drives his grey sedan in golden-hour traffic, seen from the same three-quarter side angle through the driver's window. He presses the horn with the heel of his hand and shouts angrily toward the silver hatchback ahead, face flushed, neck tense, one hand thrown up off the wheel. Behind his shoulder, {monster} has grown taller and broader, filling the rear of the car, leaning over him with its ember eyes burning brighter. Through the windscreen the woman in the navy blazer driving the hatchback flinches and grips her wheel, her face tightening, as a long arm of shadow stretches forward from his car toward hers. {style}",
+      "holdSeconds": 12,
+      "next": "office"
+    },
+    {
+      "id": "road_calm",
+      "transition": "shot",
+      "caption": "He exhales, lifts his foot, and lets the gap open. The shadow sinks back, but it does not leave.",
+      "prompt": "The same tired man in the wrinkled office shirt drives his grey sedan in golden-hour traffic, seen from the same three-quarter side angle through the driver's window. He closes his eyes for a second, exhales slowly, loosens his grip on the steering wheel and lets the silver hatchback pull away into the distance, his shoulders dropping. Behind him, {monster} sinks back into the dark rear seat, smaller and dimmer, its ember eyes fading to a faint glow but still watching. Warm low sunlight, calm steady tracking shot. {style}",
+      "holdSeconds": 12,
+      "next": "home"
+    },
+    {
+      "id": "home",
+      "transition": "shot",
+      "caption": "He let it go on the road, but the shadow rode home with him. His teenage son's bike is lying across the driveway again.",
+      "prompt": "The camera stays with the same tired man in the wrinkled office shirt as his surroundings become a suburban driveway at dusk. He stands beside his grey sedan, briefcase in hand, looking down at a teenager's bicycle dropped carelessly across the driveway, blocking the garage. His fifteen-year-old son sits on the front step with headphones on, not looking up. The man rubs his forehead, lips pressed thin. A few steps behind the man, half in the shadow of the garage, stands {monster}, small and dim but slowly straightening, its ember eyes beginning to glow again. Wide two-shot from the lawn, soft blue dusk light with a warm porch lamp. {style}",
+      "choices": [
+        {
+          "label": "Yell at him about the bike in front of the neighbours.",
+          "next": "home_yell"
+        },
+        {
+          "label": "Say nothing, drag the bike aside, and give him the cold shoulder.",
+          "next": "home_cold"
+        },
+        {
+          "label": "Sit down next to him on the step and ask how his day went.",
+          "next": "ending"
+        }
+      ]
+    },
+    {
+      "id": "home_yell",
+      "transition": "shot",
+      "caption": "He shouts. His son says nothing. In the doorway his wife watches, and the anger crosses the driveway to her.",
+      "prompt": "Dusk in the same suburban driveway. The tired man in the wrinkled office shirt points at the bicycle on the ground and shouts at his fifteen-year-old son on the front step, who pulls off his headphones and stares at the ground. In the open front doorway a woman in her forties in a navy blazer watches with her arms crossed, her face tightening with anger. Towering behind the man, {monster} has grown large, then stretches one long arm of shadow across the driveway toward the woman in the doorway, its ember eyes bright. Wide shot from the lawn, cold dusk light, warm porch lamp. {style}",
+      "holdSeconds": 12,
+      "next": "office"
+    },
+    {
+      "id": "home_cold",
+      "transition": "shot",
+      "caption": "He hauls the bike aside without a word. In the doorway his wife watches, and the anger crosses the driveway to her.",
+      "prompt": "Dusk in the same suburban driveway. The tired man in the wrinkled office shirt drags the bicycle roughly to the side of the garage without a word and walks past his fifteen-year-old son on the front step without looking at him; the boy watches him go, hurt. In the open front doorway a woman in her forties in a navy blazer watches, jaw set, her face tightening with anger. Behind the man, {monster} has grown large, then stretches one long arm of shadow across the driveway toward the woman in the doorway, its ember eyes bright. Wide shot from the lawn, cold dusk light, warm porch lamp. {style}",
+      "holdSeconds": 12,
+      "next": "office"
+    },
+    {
+      "id": "office",
+      "transition": "shot",
+      "caption": "The anger went with her. The next morning she is still carrying it when a coworker points out her mistake in front of the team.",
+      "prompt": "The camera stays with the same woman in the navy blazer, the one the shadow reached for, as her surroundings become an open-plan office the next morning with grey daylight through tall windows. She sits at her desk, tense and tired, the shadow figure having followed her here, as a younger male coworker in a light blue shirt stands beside her holding a printed report, pointing at an error on the page while two colleagues look over from nearby desks. Her lips press together, her fingers tighten around a pen, colour rising in her face. Standing directly behind her chair, hunched over her shoulder, is {monster}, its ember eyes brightening as her frustration builds. Medium-wide shot from across the desk, slow push-in, cool fluorescent and window light. {style}",
+      "choices": [
+        {
+          "label": "Snap at him with a sarcastic remark so the whole team hears.",
+          "next": "office_snap"
+        },
+        {
+          "label": "Stay silent, then send him a cold, cutting email.",
+          "next": "office_email"
+        },
+        {
+          "label": "Tell him honestly it has been a rough night, and thank him for catching it.",
+          "next": "ending"
+        }
+      ]
+    },
+    {
+      "id": "office_snap",
+      "transition": "shot",
+      "caption": "Her remark cuts across the room. He takes the report back, face burning, and the anger goes with him.",
+      "prompt": "The same open-plan office in grey morning light. The woman in the navy blazer looks up from her desk and snaps a sharp sarcastic remark at the younger coworker in the light blue shirt; he steps back, embarrassed, his ears red, clutching the printed report as two colleagues look away. Behind her chair, {monster} has grown tall and broad, then turns its head and drifts toward the humiliated coworker, one long shadow arm settling on his shoulder, its ember eyes bright. Medium-wide shot from across the desk, cool fluorescent and window light. {style}",
+      "holdSeconds": 12,
+      "next": "cafe"
+    },
+    {
+      "id": "office_email",
+      "transition": "shot",
+      "caption": "She types three short sentences and presses send. He reads them twice, and the anger settles on him.",
+      "prompt": "The same open-plan office in grey morning light. The woman in the navy blazer types quickly at her keyboard with a hard, flat expression and presses a key with finality. A few desks away the younger coworker in the light blue shirt reads his monitor, his shoulders sinking and his jaw tightening as he reads. {monster} stands tall between the desks, then drifts from behind her chair toward the coworker, one long shadow arm settling on his shoulder, its ember eyes bright. Wide shot down the row of desks, cool fluorescent and window light. {style}",
+      "holdSeconds": 12,
+      "next": "cafe"
+    },
+    {
+      "id": "cafe",
+      "transition": "shot",
+      "caption": "The anger went with him. At lunch he is still stinging when an overwhelmed barista hands him the wrong order.",
+      "prompt": "The camera stays with the same young man in the light blue shirt, the one the shadow settled on, as his surroundings become a busy city cafe at lunchtime, a long queue and steam rising from the espresso machine. He stands at the counter holding a takeaway cup, lifting the lid and frowning at the wrong drink. Across the counter a young barista in a dark green apron, hair tied back, clearly overwhelmed, wipes her hands and looks at him anxiously. His nostrils flare and he sets the cup down hard. Standing directly behind his shoulder, hunched over him, is {monster}, its ember eyes brightening as his irritation builds. Side-on two-shot along the counter, warm pendant lights against cool window light. {style}",
+      "choices": [
+        {
+          "label": "Berate her loudly in front of the queue.",
+          "next": "cafe_berate"
+        },
+        {
+          "label": "Push the cup back with a cutting remark and demand her manager.",
+          "next": "cafe_manager"
+        },
+        {
+          "label": "Notice she is swamped and tell her there is no rush, it happens.",
+          "next": "ending"
+        }
+      ]
+    },
+    {
+      "id": "cafe_berate",
+      "transition": "shot",
+      "caption": "He raises his voice. The queue goes quiet. The anger crosses the counter to her.",
+      "prompt": "The same busy city cafe at lunchtime. The young man in the light blue shirt leans over the counter and berates the young barista in the dark green apron, jabbing a finger at the cup, while customers in the queue stare. The barista's eyes shine, her jaw tightens and her hands tremble on the milk jug. Behind the man, {monster} has grown tall and broad, then leans across the counter and settles behind the barista instead, its long arms closing around her shoulders, its ember eyes bright. Side-on shot along the counter, warm pendant lights. {style}",
+      "holdSeconds": 12,
+      "next": "kitchen"
+    },
+    {
+      "id": "cafe_manager",
+      "transition": "shot",
+      "caption": "He asks for the manager, loudly. She is written up, and the anger crosses the counter to her.",
+      "prompt": "The same busy city cafe at lunchtime. The young man in the light blue shirt pushes the takeaway cup back across the counter with two fingers and says something cold while an older manager in a black shirt steps in beside the young barista in the dark green apron and frowns at her. The barista swallows, eyes down, her jaw tightening. Behind the man, {monster} has grown tall and broad, then leans across the counter and settles behind the barista instead, its long arms closing around her shoulders, its ember eyes bright. Side-on shot along the counter, warm pendant lights. {style}",
+      "holdSeconds": 12,
+      "next": "kitchen"
+    },
+    {
+      "id": "kitchen",
+      "transition": "shot",
+      "caption": "The anger went home with her. She gets in late, and her father, tired himself, asks why dinner had to go cold.",
+      "prompt": "The camera stays with the same young barista in the dark green apron, the one the shadow closed its arms around, as her surroundings become a small apartment kitchen in the evening, lit by a single warm overhead lamp. Now wearing an open jacket over the apron, she drops her bag on a chair, exhausted, eyes red. Her father, a tired man in his forties in a wrinkled office shirt, sits at the table in front of two plates of cold food and gestures at the clock on the wall with a weary, irritated expression. Her hands curl into fists at her sides and her breathing quickens. Standing in the dark hallway directly behind her, hunched over her shoulder, is {monster}, its ember eyes brightening as her anger builds. Medium-wide two-shot across the kitchen table, warm lamp light and deep shadows. {style}",
+      "choices": [
+        {
+          "label": "Snap that he never once asks how her day was.",
+          "next": "kitchen_snap"
+        },
+        {
+          "label": "Say nothing, walk past him, and slam the bedroom door.",
+          "next": "kitchen_slam"
+        },
+        {
+          "label": "Sit down, tell him it was an awful day, and ask about his.",
+          "next": "ending"
+        }
+      ]
+    },
+    {
+      "id": "kitchen_snap",
+      "transition": "shot",
+      "caption": "Her words hit him. The anger moves to her father, who grabs his keys and walks out to the car.",
+      "prompt": "The same small apartment kitchen under a single warm lamp. The young woman in the dark green apron shouts across the table at her father, tears of anger in her eyes. The tired man in the wrinkled office shirt stands up abruptly, stung, his jaw tight, snatches car keys from the counter and turns toward the door. Behind the young woman, {monster} towers to the ceiling, then turns and follows the father, one long shadow arm settling on his shoulder, its ember eyes burning. Medium-wide shot across the kitchen table, warm lamp light and deep shadows. {style}",
+      "holdSeconds": 12,
+      "next": "road"
+    },
+    {
+      "id": "kitchen_slam",
+      "transition": "shot",
+      "caption": "The door slams. The anger settles on her father, who takes his keys and goes for a drive.",
+      "prompt": "The same small apartment kitchen under a single warm lamp. The young woman in the dark green apron walks past the table without a word and disappears down the dark hallway as a door slams. The tired man in the wrinkled office shirt sits alone in front of two plates of cold food, staring at the table, his jaw working, then picks up his car keys. {monster} towers to the ceiling in the hallway, then drifts to stand directly behind the father's chair, one long shadow arm settling on his shoulder, its ember eyes burning. Medium-wide shot across the kitchen table, warm lamp light and deep shadows. {style}",
+      "holdSeconds": 12,
+      "next": "road"
+    },
+    {
+      "id": "ending",
+      "transition": "shot",
+      "caption": "One kind response. The shadow loses its shape, its eyes go out, and it is gone.",
+      "prompt": "The same place and the same people, now calm: the person's shoulders drop, their face softens into a tired, genuine half-smile, and the other person relaxes and leans closer, the two of them talking quietly. Behind them, {monster} is slowly losing its shape, its outline thinning and unravelling into pale drifting smoke, its ember eyes dimming to faint points and then going dark, the last of the shadow dissolving completely into the air until only warm, clean light remains. Slow gentle pull-back, soft warm light filling the frame. {style}",
+      "end": true
+    }
+  ]
+}
