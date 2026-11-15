@@ -161,7 +161,8 @@ class Panel {
     // Left: this window's own character. Right: the person they are facing. Centre: a third, at the dinner table.
     this.monsters = [-1, 1, 0].map((sideOfScreen) => {
       const monster = makeMonster();
-      monster.position.set(sideOfScreen * (width / 2 - width * 0.04), height / 2, 0.08);
+      // Far enough forward that the whole ball clears the window: at full size its radius is width * 0.1.
+      monster.position.set(sideOfScreen * (width / 2 - width * 0.04), height / 2, width * 0.12);
       monster.userData.target = 0;
       return monster;
     });
@@ -169,7 +170,7 @@ class Panel {
     // On a window that shows more than one person, each marker carries its owner's name.
     this.tags = tagged ? this.monsters.map((monster) => {
       const tag = new TextPlate(width * 0.15, width * 0.042, 256);
-      tag.mesh.position.set(monster.position.x, monster.position.y - width * 0.085, 0.27);
+      tag.mesh.position.set(monster.position.x, monster.position.y - width * 0.085, width * 0.235); // in front of the ball
       tag.mesh.visible = false;
       this.group.add(tag.mesh);
       return tag;
@@ -733,7 +734,7 @@ async function chooseFor(actor, scenario) {
     return choices.find((c) => c.action === wanted);
   }
   mainPanel.highlight(true);
-  setStatus(`What does ${actor.name} do?  Point and pull the trigger, or press 1, 2, 3.`);
+  setStatus(""); // no instructions under the count: the three choices speak for themselves
   const freeze = setTimeout(() => main.hold(true), SETTLE);
   try { return await offerChoices(choices); }
   finally { clearTimeout(freeze); main.hold(false); mainPanel.highlight(false); }
