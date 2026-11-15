@@ -399,9 +399,9 @@ function setCaption(text, detail = "") {
 function drawHud() {
   hud.draw([
     { text: `Monsters in the world: ${world.monsterCount}`, size: 50, bold: true, color: world.monsterCount ? "#b48cff" : "#8fd694" },
-    { text: [clock, hudStatus].filter(Boolean).join("   ·   "), size: 36, color: "#b9b6ae" },
+    { text: hudStatus, size: 36, color: "#b9b6ae" }, // the time of day is not shown; only the director uses it
   ]);
-  $("status").textContent = `${clock}. ${world.monsterCount} monster(s). ${hudStatus}`;
+  $("status").textContent = `${world.monsterCount} monster(s). ${hudStatus}`;
 }
 const setStatus = (text) => { hudStatus = text; drawHud(); };
 
