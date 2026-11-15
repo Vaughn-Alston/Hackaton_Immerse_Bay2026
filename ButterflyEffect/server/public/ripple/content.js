@@ -22,28 +22,44 @@ const person = ([name, appearanceDescription, personality, kid = false, extra = 
 const N = "NEGATIVE", P = "POSITIVE";
 const choice = (action, label, beat, after) => ({ action, label, beat, after });
 
-/** The creature on one person's shoulder, or an empty string. Someone without a Monster is not mentioned at all. */
-export function monsterOn(character, whose = "their") {
-  if (character.monsterState === FULL) {
-    return `Perched on ${whose} left shoulder, beside the neck, is a small dark-purple creature the size of a cat, with a round shadowy body and two faintly glowing violet eyes`;
-  }
-  if (character.monsterState === SMALL) {
-    return `Perched on ${whose} left shoulder is a tiny dark-purple creature no bigger than a mouse, its two violet eyes dim`;
-  }
+// Whether the videos show creatures at all. With ?creatures=off the window markers are the only Monsters.
+let creaturesOn = true;
+export function setCreatures(on) { creaturesOn = Boolean(on); }
+
+/**
+ * A short way to point at one person in a prompt, e.g. "the woman with the cream knitted cardigan".
+ * Every creature sentence names its owner this way, so the video model cannot attach it to someone else.
+ */
+export function anchor(character) {
+  if (character.anchor) return character.anchor;
+  const text = character.appearanceDescription ?? "";
+  const subject = text.split(/ in (?:her|his|their) | with |,/)[0].replace(/^an? /, "") || "person";
+  const item = (text.split(",")[1] ?? "").split(" and ")[0].trim().replace(/^an? /, "");
+  return item ? `the ${subject} with the ${item}` : `the ${subject}`;
+}
+
+/** One sentence saying this person has exactly one creature, or an empty string if they have none. */
+export function monsterOn(character, state = character.monsterState) {
+  if (!creaturesOn) return "";
+  const who = anchor(character);
+  if (state === FULL) return `${who.charAt(0).toUpperCase() + who.slice(1)} has exactly one small dark-purple creature the size of a cat sitting on the left shoulder beside the neck, with a round shadowy body and two faintly glowing violet eyes`;
+  if (state === SMALL) return `${who.charAt(0).toUpperCase() + who.slice(1)} has exactly one tiny dark-purple creature no bigger than a mouse sitting on the left shoulder, its two violet eyes dim`;
   return "";
 }
 
-/** The same, as a sentence that can be dropped into a prompt (empty when there is no Monster). */
-const creature = (character, whose) => { const text = monsterOn(character, whose); return text ? ` ${text}.` : ""; };
+/** The same, ready to drop into a prompt (empty when there is no Monster). */
+const creature = (character, state) => { const text = monsterOn(character, state); return text ? ` ${text}.` : ""; };
 
-const NUMBER = ["no", "exactly one", "exactly two", "exactly three"];
+const NUMBER = ["no", "one", "two", "three"];
 /** Tells the video model how many creatures the frame holds, so it does not add or drop one. */
 export function creatureCount(count) {
+  if (!creaturesOn) return "";
   if (count <= 0) return " There are no creatures of any kind anywhere in the scene, and nothing on anyone's shoulders.";
-  if (count === 1) return " There is exactly one such creature in the whole scene, on that one person only. Nobody else has anything on their shoulders.";
-  return ` There are ${NUMBER[Math.min(count, 3)]} such creatures in the whole scene, one per person, never two on the same person.`;
+  if (count === 1) return " That is the only creature in the whole scene. Nobody else has anything on their shoulders, and nobody has more than one.";
+  return ` That makes ${NUMBER[Math.min(count, 3)]} creatures in total, one on each of those people. Nobody has more than one.`;
 }
-const carrying = (...people) => people.filter((c) => c.monsterState === FULL || c.monsterState === SMALL).length;
+const has = (state) => state === FULL || state === SMALL;
+const carrying = (...people) => people.filter((c) => has(c.monsterState)).length;
 
 const cap = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const fill = (text, a, r) =>
@@ -64,17 +80,17 @@ export const EPISODE = {
 
   /** Scene 1, before the question: the full dishwasher that nobody started. */
   kitchenPrompt(mom, dad) {
-    return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated.${creature(mom, "her")} Behind her, ${dad.appearanceDescription} is getting ready to leave for work, checking his bag.${creature(dad, "his")}${creatureCount(carrying(mom, dad))} Medium-wide two-shot. ${STYLE}`;
+    return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated. Behind her, ${dad.appearanceDescription} is getting ready to leave for work, checking his bag.${creature(mom)}${creature(dad)}${creatureCount(carrying(mom, dad))} Medium-wide two-shot. ${STYLE}`;
   },
 
-  /** Scene 1, the scene breaking up: Dad walks out, and the camera goes with him. */
+  /** Scene 1, the scene breaking up: Dad walks out alone, and the camera goes with him. */
   dadLeavesPrompt(mom, dad) {
-    return `${this.kitchenPlace}. ${cap(dad.appearanceDescription)} picks up his bag, turns away and walks out of the kitchen toward the hallway, hurt and trying not to show it.${creature(dad, "his")} Behind him, out of focus, ${mom.appearanceDescription} stays by the open dishwasher.${creature(mom, "her")}${creatureCount(carrying(mom, dad))} The camera follows him from the front. ${STYLE}`;
+    return `The doorway between a family kitchen and a hallway, soft cool morning sunlight. ${cap(dad.appearanceDescription)} walks alone out of the kitchen toward the hallway carrying his bag, hurt and trying not to show it. Nobody else is in the frame.${creature(dad)}${creatureCount(carrying(dad))} The camera follows him from the front. ${STYLE}`;
   },
 
   /** Scene 1, after: Mom alone, for her side window. */
   momAlonePrompt(mom) {
-    return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} stands alone at the counter, loading the last dishes with short hard movements, jaw tight.${creature(mom, "her")}${creatureCount(carrying(mom))} Medium shot. ${STYLE}`;
+    return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} stands alone at the counter, loading the last dishes with short hard movements, jaw tight. Nobody else is in the frame.${creature(mom)}${creatureCount(carrying(mom))} Medium shot. ${STYLE}`;
   },
 
   // Scene 2: the first choice. An innocent thing at the worst moment.
@@ -93,7 +109,7 @@ export const EPISODE = {
 
   /** Scene 4: the same kitchen that evening, everyone carrying whatever the day left them with. */
   dinnerPrompt(mom, dad, child) {
-    return `${KITCHEN}, now in warm intimate evening lamplight, the dishwasher humming quietly with a small green light on. Seated around the round wooden table eating dinner are three people. ${cap(mom.appearanceDescription)}.${creature(mom, "her")} Next to her, ${dad.appearanceDescription}.${creature(dad, "his")} Between them, ${child.appearanceDescription}.${creature(child, "the child's")}${creatureCount(carrying(mom, dad, child))} The child reaches across the table for a glass of water and a parent passes it. Plates of food, quiet ordinary conversation. Wide shot from across the table. ${STYLE}`;
+    return `${KITCHEN}, now in warm intimate evening lamplight, the dishwasher humming quietly with a small green light on. Seated around the round wooden table eating dinner are three people. ${cap(mom.appearanceDescription)}. Next to her, ${dad.appearanceDescription}. Between them, ${child.appearanceDescription}.${creature(mom)}${creature(dad)}${creature(child)}${creatureCount(carrying(mom, dad, child))} The child reaches across the table for a glass of water and a parent passes it. Plates of food, quiet ordinary conversation. Wide shot from across the table. ${STYLE}`;
   },
 };
 
@@ -234,52 +250,48 @@ export function validChoices(choices) {
 
 /** A character on their own, between encounters. */
 export function soloPrompt(c, mood = "walks alone, jaw tight, shoulders tense, lost in a bad mood") {
-  return `A city street in daylight. ${cap(c.appearanceDescription)} ${mood}.${creature(c)}${creatureCount(carrying(c))} Slow tracking shot from the front and slightly to the side, shoulders and face clearly visible. ${STYLE}`;
+  return `A city street in daylight. ${cap(c.appearanceDescription)} ${mood}. Nobody else is in the frame.${creature(c)}${creatureCount(carrying(c))} Slow tracking shot from the front and slightly to the side, shoulders and face clearly visible. ${STYLE}`;
 }
 
-/** The one who was harsh walks out of the scene; the camera stays with the person left behind. */
+/** The one who was harsh has walked out; the camera stays with the person left behind, alone in the frame. */
 export function exitPrompt(leaver, stayer, place) {
-  return `${place}. ${cap(leaver.appearanceDescription)} turns away and walks out of frame without looking back.${creature(leaver)} The camera stays on ${stayer.appearanceDescription}, left standing there, watching them go.${creature(stayer)}${creatureCount(carrying(leaver, stayer))} Medium shot, steady camera. ${STYLE}`;
+  return `${place}. ${cap(stayer.appearanceDescription)} stands alone, watching someone walk away out of frame, hurt and trying not to show it. Nobody else is in the frame.${creature(stayer)}${creatureCount(carrying(stayer))} Medium shot, steady camera. ${STYLE}`;
 }
 
 /**
  * The moment that waits for a choice. The shot builds the pressure first: the thing has just
- * happened, the character tightens, and the creature leans in toward their ear.
+ * happened, the character tightens, and their creature leans in toward their ear.
  */
 export function encounterPrompt(a, r, scenario) {
-  const pressure = monsterOn(a) ? ` ${monsterOn(a)}, leaning in close to their ear as if whispering.` : "";
+  const pressure = monsterOn(a) ? `${creature(a)} It leans in close to that person's ear as if whispering.` : "";
   const other = scenario.innocent ? "looks up at them hopefully, waiting for an answer" : "looks back, unsure what is coming";
-  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(a.appearanceDescription)} stops, jaw tightening, a long tired breath, about to answer.${pressure} The other person, ${r.appearanceDescription}, ${other}.${creature(r)}${creatureCount(carrying(a, r))} Medium two-shot, steady camera. ${STYLE}`;
+  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(a.appearanceDescription)} stops, jaw tightening, a long tired breath, about to answer. The other person, ${r.appearanceDescription}, ${other}.${pressure}${creature(r)}${creatureCount(carrying(a, r))} Medium two-shot, steady camera. ${STYLE}`;
 }
 
 /**
- * What the camera shows as the rules take effect. `types` are the event types the state manager
- * produced (or will produce). A harsh answer makes the creature duplicate: the original stays,
- * and the copy grows on the other person.
+ * What the camera shows once the rules have taken effect. `types` are the event types the state
+ * manager produced (or will produce). The prompt states who has a creature at the end; it never
+ * describes one appearing, splitting, shrinking or leaving, because the video model draws
+ * whatever a prompt names, wherever the sentence starts.
  */
 export function outcomePrompt(a, r, place, action, types, beat = "") {
   const A = cap(a.appearanceDescription);
   const R = r.appearanceDescription;
-  const otherHas = r.monsterState === FULL || r.monsterState === SMALL;
-  let body, count;
+  // Where each person ends up, whether or not the state manager has applied it yet.
+  const aAfter = action === N ? FULL : types.includes("MONSTER_REMOVED") ? "NONE" : types.includes("MONSTER_SHRUNK") ? SMALL : a.monsterState;
+  const rAfter = action === N ? FULL : r.monsterState;
+  let body;
   if (action === N) {
-    const spread = types.includes("MONSTER_SPAWNED")
-      ? "The dark-purple creature on the first person's left shoulder splits in two: the original stays exactly where it is, and its copy, a small purple shadow, drifts across to the other person, settles on their left shoulder beside the neck and grows to the size of a cat, opening two violet eyes"
-      : "The dark-purple creature on the first person's left shoulder stays exactly where it is, and the smaller creature already on the other person's left shoulder swells back to the size of a cat";
-    body = `${A} ${beat || "snaps harshly, face hard"}, speaking to ${R}, whose face falls, hurt and trying not to show it. ${spread}. By the end each of the two people carries exactly one creature`;
-    count = 2;
+    body = `${A} ${beat || "snaps harshly, face hard"}, speaking to ${R}, whose face falls, hurt and trying not to show it`;
   } else if (action === P && types.includes("MONSTER_REMOVED")) {
-    body = `${A} ${beat || "smiles tiredly and speaks gently"}, speaking to ${R}, who relaxes and smiles back. The tiny dark-purple creature on the first person's left shoulder loses its shape, thins into pale drifting mist and vanishes completely. Warm clean light fills the frame`;
-    count = otherHas ? 1 : 0;
+    body = `${A} ${beat || "smiles tiredly and speaks gently"}, speaking to ${R}, who relaxes and smiles back. Warm clean light fills the frame`;
   } else if (action === P) {
-    body = `${A} ${beat || "breathes out, lets their shoulders drop and speaks calmly"}, speaking to ${R}, who brightens with visible relief. The dark-purple creature on the first person's left shoulder shrinks from the size of a cat to the size of a mouse, its violet eyes dimming`;
-    count = otherHas ? 2 : 1;
+    body = `${A} ${beat || "breathes out, lets their shoulders drop and speaks calmly"}, speaking to ${R}, who brightens with visible relief`;
   } else {
-    body = `${A} says very little and looks away from ${R}, who shrugs and moves on.${creature(a)}`;
-    count = carrying(a, r);
+    body = `${A} says very little and looks away from ${R}, who shrugs and moves on`;
   }
-  const total = action === N ? "" : creatureCount(count).replace("There is", "At the end there is").replace("There are", "At the end there are");
-  return `${place}. ${body}.${total} Medium two-shot, steady camera. ${STYLE}`;
+  const count = [aAfter, rAfter].filter(has).length;
+  return `${place}. ${body}.${creature(a, aAfter)}${creature(r, rAfter)}${creatureCount(count)} Medium two-shot, steady camera. ${STYLE}`;
 }
 
 /** A side-story beat without the director: a fitting situation and one of its three written answers. */
