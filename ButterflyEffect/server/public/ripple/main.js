@@ -866,7 +866,7 @@ async function sceneDinner() {
 
   // The camera pulls back: the kitchen becomes one Living Window among the others.
   setCaption("Everyone we met is living their own evening.", "Some still carry monsters. Some carry smaller ones. Some have none.");
-  const pullMs = FAST ? 300 : 9000;
+  const pullMs = FAST ? 300 : 5000;
   const started = performance.now();
   const pull = setInterval(() => {
     const t = Math.min((performance.now() - started) / pullMs, 1);
@@ -874,14 +874,14 @@ async function sceneDinner() {
     stage.position.z = -VIEW_DISTANCE - 1.1 * eased;
     mainPanel.group.scale.setScalar(1 - 0.35 * eased);
   }, 16);
-  // The world is still alive: two more real beats play out while we watch.
-  await sleep(pullMs / 3); await sideBeat();
-  await sleep(pullMs / 3); await sideBeat();
-  await sleep(pullMs / 3 + HOLD * 0.5);
+  // The world is still alive: two more real beats start in the side windows while we pull back.
+  // They are not waited for, so the ending keeps moving.
+  sideBeat().then(() => running && sideBeat());
+  await sleep(pullMs + (FAST ? 100 : 1500));
   clearInterval(pull);
 
   setCaption("The world is not completely healed. And it is not completely broken.");
-  await sleep(HOLD * 0.6);
+  await sleep(FAST ? 150 : 4000);
   await showTitle();
 }
 
@@ -894,7 +894,7 @@ async function showTitle() {
   title.mesh.position.set(0.12, 1.5, -1.5);
   title.mesh.material.opacity = 0;
   scene.add(shade, title.mesh);
-  const fadeMs = FAST ? 200 : 3500;
+  const fadeMs = FAST ? 200 : 2200;
   const started = performance.now();
   await new Promise((resolve) => {
     const fade = setInterval(() => {
