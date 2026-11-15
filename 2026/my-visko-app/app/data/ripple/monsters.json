@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "monsterType": {
+    "id": "shoulder-ripple-monster",
+    "label": "Ripple Monster",
+    "meaning": "A visible representation of negative emotion carried by a character.",
+    "visualIdentity": {
+      "scale": "small enough to perch on one human shoulder",
+      "body": "a compact creature made of smoky indigo fur with a softly translucent edge",
+      "face": "two dim amber eyes and a small downturned mouth",
+      "limbs": "four short limbs with rounded gripping paws",
+      "motion": "subtle breathing and small weight shifts while holding the host's shoulder",
+      "promptReference": "the same small shoulder Monster with smoky indigo fur, translucent edges, dim amber eyes, a downturned mouth, and four rounded gripping paws"
+    },
+    "attachment": {
+      "defaultShoulder": "left",
+      "anchor": "upper surface of the host's left shoulder",
+      "orientation": "facing generally in the same direction as the host",
+      "remainsAttachedDuringMovement": true
+    }
+  },
+  "states": {
+    "FULL": {
+      "id": "FULL",
+      "scaleRelativeToHead": 0.42,
+      "opacity": 1,
+      "behavior": "alert, tense, gripping the host's shoulder",
+      "visualPrompt": "The same full-size Monster remains firmly perched on the host's left shoulder."
+    },
+    "SMALL": {
+      "id": "SMALL",
+      "scaleRelativeToHead": 0.22,
+      "opacity": 0.72,
+      "behavior": "quieter, weaker, with a looser grip",
+      "visualPrompt": "The host's Monster visibly shrinks to about half its previous size, its glow dimming as its grip loosens."
+    },
+    "NONE": {
+      "id": "NONE",
+      "scaleRelativeToHead": 0,
+      "opacity": 0,
+      "behavior": "absent",
+      "visualPrompt": "The small weakened Monster dissolves into faint indigo wisps and disappears from the host's shoulder."
+    }
+  },
+  "spawnSequence": [
+    {
+      "id": "indigo-wisp-appears",
+      "visualPrompt": "A faint indigo wisp appears just above the recipient's left shoulder."
+    },
+    {
+      "id": "monster-forms",
+      "visualPrompt": "The indigo wisp gathers into the same small smoky-furred Monster, which settles onto the recipient's left shoulder."
+    }
+  ],
+  "consistencyRules": [
+    "A negative response creates a new Monster; it never transfers the existing Monster.",
+    "The original host keeps their Monster unless an approved positive transition changes it.",
+    "Every Monster uses the same species identity and shoulder attachment rules.",
+    "Only the state engine may change FULL, SMALL, or NONE."
+  ]
+}

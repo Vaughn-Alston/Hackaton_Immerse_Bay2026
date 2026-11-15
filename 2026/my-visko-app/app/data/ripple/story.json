@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "1.0",
+  "storyId": "the-ripple",
+  "title": "The Ripple",
+  "coreMessage": "The ripple can stop with you.",
+  "platform": ["Meta Quest 3", "Visko Orbis"],
+  "primaryInteraction": "voice",
+  "generationPolicy": {
+    "style": "photorealistic",
+    "continuousTake": true,
+    "maximumVisibleCharacters": 3,
+    "maximumInitialPromptWords": 100,
+    "oneVisibleActionPerTransition": true,
+    "transitionLandingTimeMs": 3000,
+    "pictureDrivenAudio": true
+  },
+  "phaseOrder": ["openingTutorial", "playerControlledStory"],
+  "phases": {
+    "openingTutorial": {
+      "id": "openingTutorial",
+      "interactive": false,
+      "interactionId": "tutorial-negative-ripple",
+      "purpose": "Teach that a negative response creates a new Monster without removing the original Monster."
+    },
+    "playerControlledStory": {
+      "id": "playerControlledStory",
+      "interactive": true,
+      "interactionId": "voice-driven-encounter",
+      "purpose": "Let the player choose whether negative emotion propagates or stops."
+    }
+  },
+  "storyWindows": {
+    "main": {
+      "id": "main",
+      "purpose": "Follows the current player-controlled character and active encounter.",
+      "maximumCharacters": 3
+    },
+    "side": {
+      "id": "side",
+      "purpose": "Preserves characters who leave the main frame so their stories can continue independently.",
+      "inheritsCanonicalState": true
+    }
+  },
+  "initialRuntimeState": {
+    "phaseId": "openingTutorial",
+    "activeCharacterId": "personA",
+    "recipientCharacterId": "personB",
+    "mainWindowCharacterIds": ["personA", "personB"],
+    "sideWindowCharacterIds": [],
+    "globalMonsterCount": 1,
+    "negativeRippleBroken": false
+  },
+  "progressionRules": {
+    "negativeOutcome": {
+      "incrementGlobalMonsterCount": 1,
+      "transferMainFocusToRecipient": true,
+      "movePreviousActiveCharacterToSideWindow": true
+    },
+    "firstConsecutivePositiveOutcome": {
+      "incrementGlobalMonsterCount": 0,
+      "keepMainFocusOnActiveCharacter": true
+    },
+    "secondConsecutivePositiveOutcome": {
+      "incrementGlobalMonsterCount": -1,
+      "endActiveCharacterArc": true,
+      "setNegativeRippleBroken": true
+    }
+  },
+  "continuityRules": [
+    "Characters retain their canonical appearance, clothing, and distinctive features.",
+    "A host's Monster remains attached until an approved state transition changes it.",
+    "Characters leaving the main frame continue to exist in saved world state.",
+    "Only the shared state engine may approve Monster creation, shrinking, or removal.",
+    "Fresh scenes must be rebuilt from saved canonical and runtime state."
+  ],
+  "sceneContextStatus": "pending-author-input"
+}

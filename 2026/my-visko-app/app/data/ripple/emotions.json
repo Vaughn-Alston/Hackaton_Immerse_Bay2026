@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "1.0",
+  "responseCategories": {
+    "NEGATIVE": {
+      "id": "NEGATIVE",
+      "description": "A response that redirects distress toward another person through hostility, blame, contempt, or dismissal.",
+      "examples": ["blaming", "insulting", "mocking", "hostile dismissal"],
+      "visualBodyLanguage": "posture tightens, gestures become sharp, and conversational distance feels confrontational"
+    },
+    "POSITIVE": {
+      "id": "POSITIVE",
+      "description": "A response that acknowledges emotion without passing harm to the other person.",
+      "examples": ["calm boundary", "empathy", "curiosity", "constructive response"],
+      "visualBodyLanguage": "breathing slows, hands open, and posture becomes more balanced"
+    },
+    "UNCLEAR": {
+      "id": "UNCLEAR",
+      "description": "The spoken response cannot be classified with sufficient confidence.",
+      "examples": ["inaudible response", "unrelated statement", "ambiguous intent"],
+      "visualBodyLanguage": "the scene holds without changing emotional state"
+    }
+  },
+  "voiceInterpretationContract": {
+    "input": "player speech transcript",
+    "outputFields": ["category", "confidence", "shortReason"],
+    "minimumConfidence": 0.7,
+    "belowThresholdBehavior": "ask the player to respond again",
+    "prohibitedBehavior": "do not change Monster state from an UNCLEAR response"
+  },
+  "monsterStateMachine": {
+    "states": ["FULL", "SMALL", "NONE"],
+    "transitions": [
+      {
+        "id": "full-negative",
+        "currentState": "FULL",
+        "response": "NEGATIVE",
+        "newState": "FULL",
+        "spawnOnRecipient": true,
+        "consecutivePositiveResponses": 0,
+        "globalMonsterDelta": 1
+      },
+      {
+        "id": "full-positive",
+        "currentState": "FULL",
+        "response": "POSITIVE",
+        "newState": "SMALL",
+        "spawnOnRecipient": false,
+        "consecutivePositiveResponses": 1,
+        "globalMonsterDelta": 0
+      },
+      {
+        "id": "small-positive",
+        "currentState": "SMALL",
+        "response": "POSITIVE",
+        "newState": "NONE",
+        "spawnOnRecipient": false,
+        "consecutivePositiveResponses": 2,
+        "globalMonsterDelta": -1
+      },
+      {
+        "id": "small-negative",
+        "currentState": "SMALL",
+        "response": "NEGATIVE",
+        "newState": "FULL",
+        "spawnOnRecipient": true,
+        "consecutivePositiveResponses": 0,
+        "globalMonsterDelta": 1,
+        "designAssumption": "A negative response after one positive response restores the host's Monster to FULL and propagates a new Monster."
+      }
+    ]
+  },
+  "emotionalContinuityRules": [
+    "Emotion classification changes engine state before any visual prompt is generated.",
+    "Visko portrays the approved visible consequence but does not decide the category.",
+    "A negative response never removes the original host's Monster.",
+    "Two consecutive positive responses are required to remove a FULL Monster.",
+    "An unclear response produces no Monster change and no global count change."
+  ]
+}

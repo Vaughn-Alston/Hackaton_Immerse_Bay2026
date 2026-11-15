@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "1.0",
+  "interactions": {
+    "tutorial-negative-ripple": {
+      "id": "tutorial-negative-ripple",
+      "label": "Opening tutorial: the first ripple",
+      "interactive": false,
+      "sceneId": null,
+      "participants": {
+        "actorId": "personA",
+        "recipientId": "personB"
+      },
+      "preconditions": {
+        "actorMonsterState": "FULL",
+        "recipientMonsterState": "NONE"
+      },
+      "sequence": [
+        "approach-person",
+        "align-for-conversation",
+        "negative-response",
+        "recipient-negative-reaction",
+        "spawn-monster-wisp",
+        "complete-monster-spawn",
+        "transfer-main-focus",
+        "exit-main-frame"
+      ],
+      "completionState": {
+        "activeCharacterId": "personB",
+        "personAMonsterState": "FULL",
+        "personBMonsterState": "FULL",
+        "globalMonsterCount": 2,
+        "personAStoryWindow": "side",
+        "personBStoryWindow": "main"
+      }
+    },
+    "voice-driven-encounter": {
+      "id": "voice-driven-encounter",
+      "label": "Player-controlled encounter",
+      "interactive": true,
+      "sceneId": null,
+      "participants": {
+        "actorId": "personB",
+        "recipientId": "personC"
+      },
+      "preChoiceSequence": ["approach-person", "align-for-conversation"],
+      "decision": {
+        "input": "voice",
+        "classificationSource": "emotions.json#voiceInterpretationContract",
+        "supportedOutcomes": ["NEGATIVE", "POSITIVE", "UNCLEAR"]
+      },
+      "branches": {
+        "NEGATIVE": {
+          "sequence": [
+            "negative-response",
+            "recipient-negative-reaction",
+            "spawn-monster-wisp",
+            "complete-monster-spawn",
+            "transfer-main-focus",
+            "exit-main-frame"
+          ],
+          "completion": {
+            "transferControlToRecipient": true,
+            "previousActorContinuesInSideWindow": true
+          }
+        },
+        "POSITIVE_FROM_FULL": {
+          "sequence": [
+            "positive-response",
+            "recipient-positive-reaction",
+            "shrink-monster"
+          ],
+          "completion": {
+            "keepControlWithActor": true,
+            "seekAnotherEncounter": true
+          }
+        },
+        "POSITIVE_FROM_SMALL": {
+          "sequence": [
+            "positive-response",
+            "recipient-positive-reaction",
+            "remove-monster"
+          ],
+          "completion": {
+            "endActorArc": true,
+            "negativeRippleBroken": true
+          }
+        },
+        "UNCLEAR": {
+          "sequence": [],
+          "completion": {
+            "repromptPlayer": true,
+            "changeWorldState": false
+          }
+        }
+      }
+    }
+  },
+  "physicalInteractionRules": {
+    "minimumConversationDistanceMeters": 0.8,
+    "maximumConversationDistanceMeters": 1.4,
+    "maximumFacingAngleDegrees": 35,
+    "preventBodyInterpenetration": true,
+    "approachBeforeSocialAction": true,
+    "alignBeforeSocialAction": true
+  },
+  "continuityRules": [
+    "Complete each physical phase before beginning the next phase.",
+    "Do not spawn a Monster until the negative response and recipient reaction are visible.",
+    "Do not transfer focus until the recipient's Monster has visibly formed.",
+    "Characters moved to a side window retain appearance, Monster state, and relationship history.",
+    "Scene IDs remain null until author-provided scene context is added."
+  ]
+}

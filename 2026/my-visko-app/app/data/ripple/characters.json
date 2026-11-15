@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "1.0",
+  "characters": {
+    "personA": {
+      "id": "personA",
+      "name": "Mara",
+      "storyRole": "tutorial-origin-host",
+      "visualIdentity": {
+        "ageRange": "mid thirties",
+        "skinTone": "warm medium-brown skin",
+        "hair": "dark wavy hair gathered into a low bun",
+        "clothing": "a rust-red wool coat over a charcoal shirt and dark trousers",
+        "distinctiveFeatures": [
+          "a thin gold ring on the right hand",
+          "a narrow scar below the left eyebrow"
+        ],
+        "promptReference": "Mara, a woman in her mid thirties with warm medium-brown skin and dark wavy hair in a low bun, wearing the same rust-red wool coat, charcoal shirt, dark trousers, and thin gold ring"
+      },
+      "physicalProfile": {
+        "heightMeters": 1.68,
+        "personalSpaceMeters": 0.9,
+        "comfortableConversationDistanceMeters": 1.1,
+        "collisionCapsuleRadiusMeters": 0.28
+      },
+      "behaviorProfile": {
+        "baseline": "tired and guarded",
+        "negativeBodyLanguage": "tight shoulders, shortened gestures, reduced eye contact",
+        "positiveBodyLanguage": "shoulders soften, hands open, eye contact returns"
+      },
+      "initialState": {
+        "monsterState": "FULL",
+        "consecutivePositiveResponses": 0,
+        "storyWindow": "main"
+      },
+      "referenceImageId": null
+    },
+    "personB": {
+      "id": "personB",
+      "name": "Jonah",
+      "storyRole": "first-player-controlled-host",
+      "visualIdentity": {
+        "ageRange": "late twenties",
+        "skinTone": "deep brown skin",
+        "hair": "short tightly curled black hair",
+        "clothing": "a navy canvas jacket over a pale gray hooded sweatshirt and faded black jeans",
+        "distinctiveFeatures": [
+          "a small silver ear cuff on the left ear",
+          "a woven green bracelet on the right wrist"
+        ],
+        "promptReference": "Jonah, a man in his late twenties with deep brown skin and short tightly curled black hair, wearing the same navy canvas jacket, pale gray hooded sweatshirt, faded black jeans, silver ear cuff, and woven green bracelet"
+      },
+      "physicalProfile": {
+        "heightMeters": 1.8,
+        "personalSpaceMeters": 0.95,
+        "comfortableConversationDistanceMeters": 1.15,
+        "collisionCapsuleRadiusMeters": 0.3
+      },
+      "behaviorProfile": {
+        "baseline": "attentive but easily unsettled",
+        "negativeBodyLanguage": "jaw tightens, torso leans forward, hands close",
+        "positiveBodyLanguage": "breathing slows, palms open, posture becomes balanced"
+      },
+      "initialState": {
+        "monsterState": "NONE",
+        "consecutivePositiveResponses": 0,
+        "storyWindow": "main"
+      },
+      "referenceImageId": null
+    },
+    "personC": {
+      "id": "personC",
+      "name": "Leila",
+      "storyRole": "first-main-story-recipient",
+      "visualIdentity": {
+        "ageRange": "early thirties",
+        "skinTone": "light olive skin",
+        "hair": "long dark brown hair in a loose braid over the right shoulder",
+        "clothing": "a sage-green rain jacket over a cream sweater and dark blue jeans",
+        "distinctiveFeatures": [
+          "round amber-framed glasses",
+          "a canvas satchel crossing from left shoulder to right hip"
+        ],
+        "promptReference": "Leila, a woman in her early thirties with light olive skin and long dark brown hair in a loose braid, wearing the same sage-green rain jacket, cream sweater, dark blue jeans, amber-framed glasses, and canvas satchel"
+      },
+      "physicalProfile": {
+        "heightMeters": 1.65,
+        "personalSpaceMeters": 0.85,
+        "comfortableConversationDistanceMeters": 1.05,
+        "collisionCapsuleRadiusMeters": 0.27
+      },
+      "behaviorProfile": {
+        "baseline": "focused and observant",
+        "negativeBodyLanguage": "steps back, arms draw inward, gaze drops",
+        "positiveBodyLanguage": "maintains eye contact, posture relaxes, expression warms"
+      },
+      "initialState": {
+        "monsterState": "NONE",
+        "consecutivePositiveResponses": 0,
+        "storyWindow": "unassigned"
+      },
+      "referenceImageId": null
+    }
+  },
+  "identityRules": [
+    "Use character IDs for state and names only for dialogue or prompt rendering.",
+    "Do not silently change clothing, hair, skin tone, or distinctive features.",
+    "Reference images, when provided, override prose for visual appearance.",
+    "Body language may change with emotion, but canonical anatomy and clothing remain stable."
+  ]
+}

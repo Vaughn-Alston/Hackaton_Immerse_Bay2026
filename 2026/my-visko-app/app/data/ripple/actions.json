@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0",
+  "actions": {
+    "approach-person": {
+      "id": "approach-person",
+      "category": "movement",
+      "durationMs": 3000,
+      "requirements": {
+        "maximumFacingAngleDegrees": 35,
+        "targetConversationDistanceMeters": 1.1
+      },
+      "promptTemplate": "{actor} walks toward {recipient} and stops at a comfortable conversational distance.",
+      "engineEffects": ["update actor position", "set interaction distance to conversational"]
+    },
+    "align-for-conversation": {
+      "id": "align-for-conversation",
+      "category": "body-alignment",
+      "durationMs": 2500,
+      "promptTemplate": "{actor} turns to face {recipient}, settling into a balanced stance with both hands visible.",
+      "engineEffects": ["align actor facing direction toward recipient"]
+    },
+    "negative-response": {
+      "id": "negative-response",
+      "category": "social-response",
+      "durationMs": 3500,
+      "promptTemplate": "{actor} responds to {recipient} with a sharp dismissive gesture and visibly hostile body language.",
+      "engineEffects": ["record NEGATIVE response", "reset consecutive positive responses"]
+    },
+    "positive-response": {
+      "id": "positive-response",
+      "category": "social-response",
+      "durationMs": 3500,
+      "promptTemplate": "{actor} responds calmly to {recipient}, relaxing their shoulders and opening their hands in a constructive gesture.",
+      "engineEffects": ["record POSITIVE response", "increment consecutive positive responses"]
+    },
+    "recipient-negative-reaction": {
+      "id": "recipient-negative-reaction",
+      "category": "physical-reaction",
+      "durationMs": 3000,
+      "promptTemplate": "{recipient} recoils slightly, drawing their arms inward as their expression tightens.",
+      "engineEffects": ["record recipient distress reaction"]
+    },
+    "recipient-positive-reaction": {
+      "id": "recipient-positive-reaction",
+      "category": "physical-reaction",
+      "durationMs": 3000,
+      "promptTemplate": "{recipient} maintains eye contact as their posture softens and their expression warms.",
+      "engineEffects": ["record recipient constructive reaction"]
+    },
+    "spawn-monster-wisp": {
+      "id": "spawn-monster-wisp",
+      "category": "monster-state",
+      "durationMs": 3000,
+      "promptTemplate": "A faint indigo wisp appears just above {recipientPossessive} left shoulder.",
+      "engineEffects": ["begin recipient Monster spawn"]
+    },
+    "complete-monster-spawn": {
+      "id": "complete-monster-spawn",
+      "category": "monster-state",
+      "durationMs": 3500,
+      "promptTemplate": "The indigo wisp gathers into the same small smoky-furred Monster, which settles onto {recipientPossessive} left shoulder.",
+      "engineEffects": ["set recipient Monster state to FULL", "increment global Monster count"]
+    },
+    "shrink-monster": {
+      "id": "shrink-monster",
+      "category": "monster-state",
+      "durationMs": 3500,
+      "promptTemplate": "{actorPossessive} shoulder Monster visibly shrinks to half its previous size, its indigo edge dimming as its grip loosens.",
+      "engineEffects": ["set actor Monster state to SMALL"]
+    },
+    "remove-monster": {
+      "id": "remove-monster",
+      "category": "monster-state",
+      "durationMs": 3500,
+      "promptTemplate": "{actorPossessive} small weakened Monster dissolves into faint indigo wisps and disappears from their shoulder.",
+      "engineEffects": ["set actor Monster state to NONE", "decrement global Monster count"]
+    },
+    "transfer-main-focus": {
+      "id": "transfer-main-focus",
+      "category": "story-focus",
+      "durationMs": 3000,
+      "promptTemplate": "The camera begins following {recipient} as {actor} continues away toward the edge of the frame.",
+      "engineEffects": ["set recipient as active character", "move actor to side story"]
+    },
+    "exit-main-frame": {
+      "id": "exit-main-frame",
+      "category": "movement",
+      "durationMs": 3000,
+      "promptTemplate": "{actor} walks naturally out of the main frame while remaining present in the surrounding world.",
+      "engineEffects": ["remove actor from main window", "preserve actor in side window"]
+    }
+  },
+  "promptRules": [
+    "Resolve placeholders from canonical character data before sending a prompt.",
+    "Send one action at a time and wait for its duration before continuing.",
+    "Apply engine effects only after the action is accepted or intentionally committed.",
+    "Do not include hidden counters, confidence values, or state IDs in Visko prompts."
+  ]
+}
