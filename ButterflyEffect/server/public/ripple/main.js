@@ -47,7 +47,7 @@ renderer.xr.setReferenceSpaceType("local-floor");
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 50);
+const camera = new THREE.PerspectiveCamera(85, innerWidth / innerHeight, 0.05, 50); // wide on a flat screen; the headset uses its own view
 camera.position.set(0, 1.5, 0); // flat-screen view; in XR the headset pose replaces this
 camera.rotation.order = "YXZ";
 const VIEW_DISTANCE = 2.2;
@@ -307,8 +307,9 @@ renderer.domElement.addEventListener("pointerdown", () => { dragged = 0; });
 renderer.domElement.addEventListener("pointermove", (event) => {
   if (renderer.xr.isPresenting) return;
   if (event.buttons) {
-    dragged += Math.abs(event.movementX);
-    camera.rotation.y = THREE.MathUtils.clamp(camera.rotation.y + event.movementX * 0.004, -1.4, 1.4);
+    dragged += Math.abs(event.movementX) + Math.abs(event.movementY);
+    camera.rotation.y = THREE.MathUtils.clamp(camera.rotation.y + event.movementX * 0.004, -1.6, 1.6);
+    camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x + event.movementY * 0.004, -0.6, 0.9);
   }
   pointer.set((event.clientX / innerWidth) * 2 - 1, -(event.clientY / innerHeight) * 2 + 1);
   if (pendingChoice) {
@@ -316,6 +317,13 @@ renderer.domElement.addEventListener("pointermove", (event) => {
     setHover(raycaster.intersectObjects(choiceMeshes)[0]?.object.userData.choiceIndex ?? -1);
   }
 });
+// Flat screen: scroll to zoom out and take in the whole graph, or in to watch one window.
+renderer.domElement.addEventListener("wheel", (event) => {
+  if (renderer.xr.isPresenting) return;
+  event.preventDefault();
+  camera.fov = THREE.MathUtils.clamp(camera.fov + event.deltaY * 0.03, 35, 110);
+  camera.updateProjectionMatrix();
+}, { passive: false });
 renderer.domElement.addEventListener("click", () => { if (pendingChoice && dragged < 6 && hovered >= 0) choose(hovered); });
 addEventListener("keydown", (event) => {
   if (!event.repeat && ["Digit1", "Digit2", "Digit3"].includes(event.code)) choose(Number(event.code.slice(-1)) - 1);
@@ -926,7 +934,7 @@ if (xrModes.includes(true)) {
   renderer.xr.addEventListener("sessionstart", () => begin());
 } else {
   $("xr").textContent = navigator.xr
-    ? "Flat-screen preview (no headset on this device). Drag to look around."
+    ? "Flat-screen preview (no headset on this device). Drag to look around, scroll to zoom."
     : "XR needs http://localhost or https. On Quest: adb reverse tcp:8787 tcp:8787, then open localhost:8787/ripple/";
 }
 
