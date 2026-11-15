@@ -85,26 +85,39 @@ class TextPlate {
     );
   }
 
-  /** lines: [{ text, size, color, bold }], wrapped to the plate width. */
+  /**
+   * lines: [{ text, size, color, bold }], wrapped to the plate width. If the text would run past
+   * the bottom of the plate, every size is scaled down until all of it fits. Nothing is cut off.
+   * background: a CSS colour, or null for no backing (the text sits on its window's card).
+   */
   draw(lines, background = "rgba(12,12,14,0.86)") {
     const g = this.canvas.getContext("2d");
     const { width, height } = this.canvas;
-    g.clearRect(0, 0, width, height);
-    g.fillStyle = background;
-    g.beginPath(); g.roundRect(0, 0, width, height, 22); g.fill();
-    let y = 18;
-    for (const { text, size = 36, color = "#e8e6e3", bold = false } of lines) {
-      if (!text) continue;
-      g.font = `${bold ? "600 " : ""}${size}px system-ui, sans-serif`;
-      g.fillStyle = color;
-      let line = "";
-      for (const word of String(text).split(" ")) {
-        if (line && g.measureText(line + word).width > width - 56) { y += size * 1.25; g.fillText(line, 28, y); line = ""; }
-        line += word + " ";
+    const shown = lines.filter((line) => line.text);
+    // Lay the text out at a given scale: returns the wrapped rows and the height they need.
+    const layout = (scale) => {
+      const rows = [];
+      let y = 18 * scale;
+      for (const { text, size = 36, color = "#e8e6e3", bold = false } of shown) {
+        const px = size * scale;
+        const font = `${bold ? "600 " : ""}${px}px system-ui, sans-serif`;
+        g.font = font;
+        let row = "";
+        for (const word of String(text).split(" ")) {
+          if (row && g.measureText(row + word).width > width - 56) { y += px * 1.25; rows.push({ row, y, font, color }); row = ""; }
+          row += word + " ";
+        }
+        y += px * 1.25; rows.push({ row, y, font, color });
+        y += px * 0.3;
       }
-      y += size * 1.25; g.fillText(line, 28, y);
-      y += size * 0.3;
-    }
+      return { rows, bottom: y };
+    };
+    let scale = 1, fitted = layout(scale);
+    while (fitted.bottom > height - 8 && scale > 0.45) { scale *= 0.93; fitted = layout(scale); }
+
+    g.clearRect(0, 0, width, height);
+    if (background) { g.fillStyle = background; g.beginPath(); g.roundRect(0, 0, width, height, 22); g.fill(); }
+    for (const { row, y, font, color } of fitted.rows) { g.font = font; g.fillStyle = color; g.fillText(row, 28, y); }
     this.texture.needsUpdate = true;
   }
 }
@@ -128,12 +141,17 @@ const panels = new Set();
 
 /** One Living Window: a 16:9 screen, a name plate under it, and Monsters along its top edge. */
 class Panel {
-  constructor(width, plateHeight = width * 0.2, platePixels = 768, tagged = false) {
+  constructor(width, plateHeight = width * 0.2, platePixels = 768, tagged = false, extraBelow = 0) {
     this.width = width;
     const height = (width * 9) / 16;
     this.group = new THREE.Group();
-    this.border = new THREE.Mesh(new THREE.PlaneGeometry(width + 0.03, height + 0.03), new THREE.MeshBasicMaterial({ color: 0x2a2a30 }));
-    this.border.position.z = -0.004;
+    // The card: an outline and a dark fill behind the video, the name plate and (on the main
+    // window) the caption, so the whole window reads as one framed box.
+    const top = height / 2 + 0.03, bottom = -height / 2 - 0.025 - plateHeight - extraBelow - 0.03;
+    this.border = new THREE.Mesh(new THREE.PlaneGeometry(width + 0.07, top - bottom), new THREE.MeshBasicMaterial({ color: 0x2a2a30 }));
+    this.border.position.set(0, (top + bottom) / 2, -0.008);
+    this.backing = new THREE.Mesh(new THREE.PlaneGeometry(width + 0.04, top - bottom - 0.03), new THREE.MeshBasicMaterial({ color: 0x0d0d11 }));
+    this.backing.position.set(0, (top + bottom) / 2, -0.005);
     this.screen = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }));
     this.plate = new TextPlate(width, plateHeight, platePixels);
     this.plate.mesh.position.y = -height / 2 - plateHeight / 2 - 0.025;
@@ -144,7 +162,7 @@ class Panel {
       monster.userData.target = 0;
       return monster;
     });
-    this.group.add(this.border, this.screen, this.plate.mesh, ...this.monsters);
+    this.group.add(this.border, this.backing, this.screen, this.plate.mesh, ...this.monsters);
     // On a window that shows more than one person, each marker carries its owner's name.
     this.tags = tagged ? this.monsters.map((monster) => {
       const tag = new TextPlate(width * 0.15, width * 0.042, 256);
@@ -166,7 +184,7 @@ class Panel {
     this.plate.draw([
       { text: name + (live ? "  · live" : ""), size: this.featured ? 60 : 52, bold: true, color: this.featured ? "#d9bcff" : "#e8e6e3" },
       { text: detail, size: 38, color: "#b9b6ae" },
-    ]);
+    ], null);
   }
 
   /** Who is at the left, right and centre positions. Each person with a Monster gets exactly one marker. */
@@ -187,7 +205,7 @@ class Panel {
   /** Marks a main character's window: a thicker, bright frame. */
   feature() {
     this.featured = true;
-    this.border.scale.set(1.02, 1.035, 1);
+    this.border.scale.set(1.03, 1.03, 1);
     this.border.material.color.set(0xd9bcff);
   }
 
@@ -220,13 +238,14 @@ class Panel {
   dispose() { panels.delete(this); this.group.removeFromParent(); }
 }
 
-const mainPanel = new Panel(1.6, 0.2, 1280, true); // name plate ends at y = -0.675
+const CAPTION_HEIGHT = 0.36;
+const mainPanel = new Panel(1.6, 0.2, 1280, true, CAPTION_HEIGHT + 0.02); // name plate ends at y = -0.675, the card at about -1.09
 stage.add(mainPanel.group);
 
 const hud = new TextPlate(1.6, 0.17);
 hud.mesh.position.y = 0.45 + 0.24; // clear of the Monsters on the window's top edge
-const caption = new TextPlate(1.6, 0.3);
-caption.mesh.position.y = -0.85; // -0.70 to -1.00, with the choices below it
+const caption = new TextPlate(1.6, CAPTION_HEIGHT);
+caption.mesh.position.y = -0.675 - 0.02 - CAPTION_HEIGHT / 2; // inside the main window's card, under the name
 stage.add(hud.mesh, caption.mesh);
 
 // Side windows are placed by layoutRadial(): rings around the main window, like a network diagram.
@@ -237,12 +256,12 @@ const sidePanels = new Map(); // characterId -> { panel, detail, stream, connect
 
 // Three identical plates in one row under the caption. Point and pull the trigger, click, or press 1 / 2 / 3.
 const choiceButtons = [0, 1, 2].map((index) => {
-  const plate = new TextPlate(0.72, 0.42, 720);
-  const border = new THREE.Mesh(new THREE.PlaneGeometry(0.735, 0.435), new THREE.MeshBasicMaterial({ color: 0x3a3a40 }));
+  const plate = new TextPlate(0.72, 0.38, 720);
+  const border = new THREE.Mesh(new THREE.PlaneGeometry(0.735, 0.395), new THREE.MeshBasicMaterial({ color: 0x3a3a40 }));
   border.position.z = -0.004;
   const group = new THREE.Group();
   group.add(border, plate.mesh);
-  group.position.set((index - 1) * 0.75, -1.23, 0.02);
+  group.position.set((index - 1) * 0.75, -1.32, 0.02); // just under the main window's card
   group.visible = false;
   plate.mesh.userData.choiceIndex = index;
   stage.add(group);
@@ -374,8 +393,7 @@ function someoneToMeet(actor, custom, existingId) {
 }
 
 function setCaption(text, detail = "") {
-  caption.draw([{ text, size: 42 }, { text: detail, size: 34, color: "#b9b6ae" }]);
-  $("caption").textContent = detail ? `${text}  ${detail}` : text;
+  caption.draw([{ text, size: 42 }, { text: detail, size: 34, color: "#b9b6ae" }], null);
 }
 
 function drawHud() {
