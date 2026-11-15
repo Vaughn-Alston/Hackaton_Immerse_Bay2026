@@ -12,7 +12,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { interpret, direct, transcribe, claudeReady, sttReady } from "./brain.mjs";
+import { direct, claudeReady } from "./brain.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const envFile = path.join(here, ".env");
@@ -93,11 +93,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/health") {
       return send(res, 200, {
         ok: true, model: MODEL, keyConfigured: Boolean(API_KEY) && !API_KEY.startsWith("rk_replace"),
-        claude: await claudeReady(), stt: sttReady(),
+        claude: await claudeReady(),
       });
     }
 
-    // The Ripple (WebXR): static files plus the AI calls behind the voice turn and the side stories.
+    // The Ripple (WebXR): static files plus the Global Story Director.
     if (req.method === "GET" && url.pathname === "/ripple") {
       res.writeHead(302, { Location: "/ripple/" + url.search });
       return res.end();
@@ -108,22 +108,9 @@ const server = http.createServer(async (req, res) => {
       if (!file.startsWith(RIPPLE_DIR + path.sep) || !type || !existsSync(file)) return send(res, 404, { error: "not found" });
       return send(res, 200, await readFile(file, "utf8"), type);
     }
-    if (req.method === "POST" && url.pathname === "/interpret") {
-      const verdict = await interpret(JSON.parse(await readBody(req)));
-      console.log(`${new Date().toISOString()} /interpret -> ${verdict.action} (${verdict.source}) ${verdict.reason ?? ""}`);
-      return send(res, 200, verdict);
-    }
     if (req.method === "POST" && url.pathname === "/direct") {
       const beat = await direct(JSON.parse(await readBody(req)));
       return beat ? send(res, 200, beat) : send(res, 503, { error: "No director available; the client scripts this beat itself." });
-    }
-    if (req.method === "POST" && url.pathname === "/transcribe") {
-      if (!sttReady()) return send(res, 501, { error: "STT_API_KEY is not set in server/.env" });
-      const text = await transcribe(await readBody(req), req.headers["content-type"] || "audio/webm");
-      return send(res, 200, { text });
-    }
-    if (req.method === "GET" && url.pathname === "/") {
-      return send(res, 200, await readFile(PAGE_FILE, "utf8"), "text/html");
     }
     send(res, 404, { error: "not found" });
   } catch (error) {

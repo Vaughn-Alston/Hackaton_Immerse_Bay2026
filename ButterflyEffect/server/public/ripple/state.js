@@ -26,6 +26,10 @@ export class World {
       name: def.name,
       identityReference: def.characterId,
       appearanceDescription: def.appearanceDescription,
+      personality: def.personality ?? "",
+      kid: Boolean(def.kid),
+      role: def.role ?? "",                           // mom, dad or child for the family
+      routine: def.routine ? [...def.routine] : [],   // places this person is headed first
       voiceProfile: def.voiceProfile ?? "",
       currentEmotion: "calm",
       monsterState: NONE,

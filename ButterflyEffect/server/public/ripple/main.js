@@ -1,27 +1,33 @@
-// The Ripple: WebXR app. Living Windows, voice turns, and the story flow.
+// The Ripple, Episode 01: The Dishwasher. WebXR app: Living Windows, choices, and the story flow.
 //
-// URL switches:  ?mock=1  no Reactor sessions (placeholder pictures, nothing billed)
-//                ?fast=1  very short holds, for testing
-//                ?auto=NPP  scripted answers (N harsh, P kind, U unclear), repeating
-//                ?live=3  how many side windows get their own live video (default: all 8)
+// URL switches:  ?mock=1   no Reactor sessions (placeholder pictures, nothing billed)
+//                ?fast=1   very short holds, for testing
+//                ?auto=NPP scripted picks (N a harsh choice, P the kind one), repeating
+//                ?turns=4  how many choices the player makes before evening comes
+//                ?live=3   how many side windows get their own live video (default: all 8)
 
 import * as THREE from "three";
 import { XRButton } from "three/addons/webxr/XRButton.js";
 import { World, FULL, SMALL, NONE, AI_SIDE_STORY } from "./state.js";
-import { CAST, SCENARIOS, captionFor, soloPrompt, encounterPrompt, outcomePrompt, localSideBeat } from "./content.js";
+import {
+  CAST, EPISODE, scenarioFor, validChoices, captionFor, afterFor,
+  soloPrompt, encounterPrompt, outcomePrompt, eveningPrompt, localSideBeat,
+} from "./content.js";
 import { LiveStream } from "./stream.js";
-import { Voice } from "./voice.js";
 
 const params = new URLSearchParams(location.search);
 const MOCK = params.has("mock");
 const FAST = params.has("fast");
 const AUTO = (params.get("auto") ?? "").toUpperCase();
-const HOLD = FAST ? 250 : 11000;       // how long an outcome beat plays before the story moves on
+const TURNS = Number(params.get("turns") ?? 4);
+const HOLD = FAST ? 250 : 11000;       // how long a beat plays before the story moves on
 const SIDE_EVERY = FAST ? 400 : 30000; // pause between AI side-story beats
-const SETTLE = FAST ? 0 : 9000;         // how long a new moment plays before the main picture freezes for the player
-const MAX_CHARACTERS = 14;
+const SETTLE = FAST ? 0 : 9000;         // how long a new moment plays before the main picture holds for the choice
+const MAX_CHARACTERS = 20;
 // Every live window is its own Reactor session, billed per second while it is open.
 const LIVE_SIDES = Number(params.get("live") ?? 8);
+// The day, one step per choice. The opening is 7:30 AM and dinner is 6:30 PM.
+const CLOCK = ["7:45 AM", "9:10 AM", "11:30 AM", "1:15 PM", "3:40 PM", "5:20 PM"];
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -40,14 +46,9 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 50);
 camera.position.set(0, 1.5, 0); // flat-screen view; in XR the headset pose replaces this
 camera.rotation.order = "YXZ";
-// On a flat screen, drag to look around at the side windows.
-renderer.domElement.addEventListener("pointermove", (event) => {
-  if (!event.buttons || renderer.xr.isPresenting) return;
-  camera.rotation.y = THREE.MathUtils.clamp(camera.rotation.y + event.movementX * 0.004, -1.4, 1.4);
-});
 const VIEW_DISTANCE = 2.2;
-const stage = new THREE.Group(); // everything hangs here, in front of the viewer at eye height
-stage.position.set(0, 1.5, -VIEW_DISTANCE);
+const stage = new THREE.Group(); // everything hangs here, in front of the viewer
+stage.position.set(0, 1.62, -VIEW_DISTANCE);
 scene.add(stage);
 
 addEventListener("resize", () => {
@@ -70,11 +71,11 @@ class TextPlate {
   }
 
   /** lines: [{ text, size, color, bold }], wrapped to the plate width. */
-  draw(lines) {
+  draw(lines, background = "rgba(12,12,14,0.86)") {
     const g = this.canvas.getContext("2d");
     const { width, height } = this.canvas;
     g.clearRect(0, 0, width, height);
-    g.fillStyle = "rgba(12,12,14,0.86)";
+    g.fillStyle = background;
     g.beginPath(); g.roundRect(0, 0, width, height, 22); g.fill();
     let y = 18;
     for (const { text, size = 36, color = "#e8e6e3", bold = false } of lines) {
@@ -95,11 +96,11 @@ class TextPlate {
 
 function makeMonster() {
   const group = new THREE.Group();
-  group.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 16), new THREE.MeshBasicMaterial({ color: 0x1a1719 })));
-  // An ember rim, so the dark body reads against a dark room as well as against passthrough.
-  group.add(new THREE.Mesh(new THREE.SphereGeometry(0.56, 20, 16), new THREE.MeshBasicMaterial({ color: 0x8a2a14, side: THREE.BackSide })));
+  group.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 16), new THREE.MeshBasicMaterial({ color: 0x1d1230 })));
+  // A violet rim, so the dark body reads against a dark room as well as against passthrough.
+  group.add(new THREE.Mesh(new THREE.SphereGeometry(0.56, 20, 16), new THREE.MeshBasicMaterial({ color: 0x7a45c8, side: THREE.BackSide })));
   for (const x of [-0.17, 0.17]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff5a2a }));
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: 0xd9bcff }));
     eye.position.set(x, 0.1, 0.44);
     group.add(eye);
   }
@@ -110,19 +111,19 @@ function makeMonster() {
 const MONSTER_SIZE = { [FULL]: 1, [SMALL]: 0.45, [NONE]: 0 };
 const panels = new Set();
 
-/** One Living Window: a 16:9 screen, a name plate under it, and a Monster on its corner. */
+/** One Living Window: a 16:9 screen, a name plate under it, and Monsters along its top edge. */
 class Panel {
-  constructor(width) {
+  constructor(width, plateHeight = width * 0.2, platePixels = 768) {
     this.width = width;
     const height = (width * 9) / 16;
     this.group = new THREE.Group();
     this.border = new THREE.Mesh(new THREE.PlaneGeometry(width + 0.03, height + 0.03), new THREE.MeshBasicMaterial({ color: 0x2a2a30 }));
     this.border.position.z = -0.004;
     this.screen = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }));
-    this.plate = new TextPlate(width, width * 0.2, 768);
-    this.plate.mesh.position.y = -height / 2 - width * 0.1 - 0.025;
-    // Left corner: this window's own character. Right corner: the person they are facing.
-    this.monsters = [-1, 1].map((sideOfScreen) => {
+    this.plate = new TextPlate(width, plateHeight, platePixels);
+    this.plate.mesh.position.y = -height / 2 - plateHeight / 2 - 0.025;
+    // Left: this window's own character. Right: the person they are facing. Centre: a third, at the dinner table.
+    this.monsters = [-1, 1, 0].map((sideOfScreen) => {
       const monster = makeMonster();
       monster.position.set(sideOfScreen * (width / 2 - width * 0.04), height / 2, 0.08);
       monster.userData.target = 0;
@@ -133,19 +134,9 @@ class Panel {
   }
 
   setTexture(texture) {
-    this.frozen?.dispose();
-    this.frozen = null;
     this.screen.material.map = texture;
     this.screen.material.color.set(0xffffff);
     this.screen.material.needsUpdate = true;
-  }
-
-  /** Shows a still picture instead of live video. */
-  freeze(canvas) {
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    this.setTexture(texture);
-    this.frozen = texture;
   }
 
   label(name, detail, live = false) {
@@ -155,11 +146,11 @@ class Panel {
     ]);
   }
 
-  setMonster(state, other = NONE) {
-    this.monsters[0].userData.target = MONSTER_SIZE[state] * this.width * 0.2;
-    this.monsters[1].userData.target = MONSTER_SIZE[other] * this.width * 0.2;
+  /** Monster states for the left, right and centre positions. */
+  setMonster(left, right = NONE, centre = NONE) {
+    [left, right, centre].forEach((state, i) => { this.monsters[i].userData.target = MONSTER_SIZE[state] * this.width * 0.2; });
   }
-  highlight(on) { this.border.material.color.set(on ? 0xc2452d : 0x2a2a30); }
+  highlight(on) { this.border.material.color.set(on ? 0x7a45c8 : 0x2a2a30); }
 
   tick(time) {
     for (const m of this.monsters) {
@@ -169,16 +160,16 @@ class Panel {
     }
   }
 
-  dispose() { panels.delete(this); this.group.removeFromParent(); this.frozen?.dispose(); }
+  dispose() { panels.delete(this); this.group.removeFromParent(); }
 }
 
-const mainPanel = new Panel(1.6);
+const mainPanel = new Panel(1.6, 0.2, 1280); // name plate ends at y = -0.675
 stage.add(mainPanel.group);
 
 const hud = new TextPlate(1.6, 0.17);
-hud.mesh.position.y = 0.45 + 0.24; // clear of the Monster on the window corner
-const caption = new TextPlate(1.6, 0.36);
-caption.mesh.position.y = -0.45 - 0.32 - 0.24;
+hud.mesh.position.y = 0.45 + 0.24; // clear of the Monsters on the window's top edge
+const caption = new TextPlate(1.6, 0.3);
+caption.mesh.position.y = -0.85; // -0.70 to -1.00, with the choices below it
 stage.add(hud.mesh, caption.mesh);
 
 // Side windows sit on an arc around the viewer: [angle in degrees, height].
@@ -186,50 +177,167 @@ const SLOTS = [[-44, 0.3], [44, 0.3], [-44, -0.38], [44, -0.38], [-70, 0.3], [70
 const freeSlots = SLOTS.map((_, i) => i);
 const sidePanels = new Map(); // characterId -> { panel, slot, detail, stream, connected, live }
 
+// ---------------------------------------------------------------- choices
+
+// Three identical plates in a row under the caption. Point and pull the trigger, click, or press 1 / 2 / 3.
+const choiceButtons = [0, 1, 2].map((index) => {
+  const plate = new TextPlate(0.52, 0.34, 640);
+  const border = new THREE.Mesh(new THREE.PlaneGeometry(0.535, 0.355), new THREE.MeshBasicMaterial({ color: 0x3a3a40 }));
+  border.position.z = -0.004;
+  const group = new THREE.Group();
+  group.add(border, plate.mesh);
+  group.position.set((index - 1) * 0.54, -1.2, 0.02);
+  group.visible = false;
+  plate.mesh.userData.choiceIndex = index;
+  stage.add(group);
+  return { plate, border, group };
+});
+const choiceMeshes = choiceButtons.map((button) => button.plate.mesh);
+let pendingChoice = null; // { choices, resolve } while the player is deciding
+let hovered = -1;
+
+function drawChoice(index, lit) {
+  const button = choiceButtons[index];
+  button.plate.draw([
+    { text: String(index + 1), size: 30, color: "#8d8a84", bold: true },
+    { text: pendingChoice?.choices[index].label ?? "", size: 50 },
+  ], lit ? "rgba(44,36,60,0.96)" : "rgba(18,18,22,0.92)");
+  button.border.material.color.set(lit ? 0xb48cff : 0x3a3a40);
+}
+
+function setHover(index) {
+  if (index === hovered) return;
+  const previous = hovered;
+  hovered = index;
+  if (!pendingChoice) return;
+  if (previous >= 0) drawChoice(previous, false);
+  if (index >= 0) drawChoice(index, true);
+}
+
+/** Shows three choices and resolves with the one the player picks. */
+function offerChoices(choices) {
+  return new Promise((resolve) => {
+    pendingChoice = { choices, resolve };
+    hovered = -1;
+    choiceButtons.forEach((button, index) => { drawChoice(index, false); button.group.visible = true; });
+    $("choices").replaceChildren(...choices.map((c, index) => {
+      const element = document.createElement("button");
+      element.textContent = `${index + 1}. ${c.label}`;
+      element.onclick = () => choose(index);
+      return element;
+    }));
+  });
+}
+
+function choose(index) {
+  if (!pendingChoice || index < 0 || index > 2) return;
+  const { choices, resolve } = pendingChoice;
+  pendingChoice = null;
+  hovered = -1;
+  for (const button of choiceButtons) button.group.visible = false;
+  $("choices").replaceChildren();
+  resolve(choices[index]);
+}
+
+const raycaster = new THREE.Raycaster();
+const rayMatrix = new THREE.Matrix4();
+
+function choiceUnder(controller) {
+  rayMatrix.identity().extractRotation(controller.matrixWorld);
+  raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(rayMatrix);
+  return raycaster.intersectObjects(choiceMeshes)[0]?.object.userData.choiceIndex ?? -1;
+}
+
+const controllers = [0, 1].map((index) => {
+  const controller = renderer.xr.getController(index); // trigger, or a pinch with hand tracking
+  const ray = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -3)]),
+    new THREE.LineBasicMaterial({ color: 0xb48cff, transparent: true, opacity: 0.6 }),
+  );
+  ray.visible = false;
+  controller.add(ray);
+  controller.addEventListener("select", () => { if (pendingChoice) choose(choiceUnder(controller)); });
+  scene.add(controller);
+  return { controller, ray };
+});
+
+// Flat screen: drag to look around at the side windows; move over a choice to light it, click to pick it.
+const pointer = new THREE.Vector2();
+let dragged = 0;
+renderer.domElement.addEventListener("pointerdown", () => { dragged = 0; });
+renderer.domElement.addEventListener("pointermove", (event) => {
+  if (renderer.xr.isPresenting) return;
+  if (event.buttons) {
+    dragged += Math.abs(event.movementX);
+    camera.rotation.y = THREE.MathUtils.clamp(camera.rotation.y + event.movementX * 0.004, -1.4, 1.4);
+  }
+  pointer.set((event.clientX / innerWidth) * 2 - 1, -(event.clientY / innerHeight) * 2 + 1);
+  if (pendingChoice) {
+    raycaster.setFromCamera(pointer, camera);
+    setHover(raycaster.intersectObjects(choiceMeshes)[0]?.object.userData.choiceIndex ?? -1);
+  }
+});
+renderer.domElement.addEventListener("click", () => { if (pendingChoice && dragged < 6 && hovered >= 0) choose(hovered); });
+addEventListener("keydown", (event) => {
+  if (!event.repeat && ["Digit1", "Digit2", "Digit3"].includes(event.code)) choose(Number(event.code.slice(-1)) - 1);
+});
+
 // ---------------------------------------------------------------- state
 
 const world = new World();
-const voice = new Voice();
 let main, health = {};
-let running = false, engagedId = null, otherId = null, castIndex = 0, autoIndex = 0;
-let hudStatus = "", pendingTurn = null, talking = false;
+let running = false, phase = "day", clock = "7:30 AM", engagedId = null, otherId = null, autoIndex = 0, sideTurn = 0;
+let family = []; // [mom, dad, child]
+let hudStatus = "";
 
-function newCharacter(custom) {
+/** Adds someone new to the world: the director's invention if it gave one, otherwise the next unused cast member. */
+function newCharacter(custom, kid = false) {
   if (world.list().length >= MAX_CHARACTERS) return null;
   const taken = new Set(world.list().map((c) => c.name.toLowerCase()));
   if (custom?.name && custom?.appearanceDescription && !taken.has(custom.name.toLowerCase())) {
-    return world.add({ characterId: "person_" + custom.name.toLowerCase().replace(/\W+/g, "_"), ...custom });
+    return world.add({ ...custom, characterId: "person_" + custom.name.toLowerCase().replace(/\W+/g, "_") });
   }
-  while (castIndex < CAST.length && taken.has(CAST[castIndex].name.toLowerCase())) castIndex++;
-  return castIndex < CAST.length ? world.add(CAST[castIndex++]) : null;
+  const next = CAST.find((c) => !taken.has(c.name.toLowerCase()) && c.kid === kid);
+  return next ? world.add(next) : null;
 }
 
-/** Someone for `actor` to run into: a new face while there are any, otherwise someone already met. */
-function someoneToMeet(actor, custom) {
-  return newCharacter(custom) ?? pick(world.list().filter((c) => c !== actor && c.characterId !== world.mainId && c.characterId !== engagedId)) ?? null;
+/**
+ * Someone for `actor` to run into. The director may ask for a character who already exists,
+ * so storylines can cross; otherwise a new face, and once the cast runs out, someone already met.
+ */
+function someoneToMeet(actor, custom, existingId) {
+  const free = (c) => c !== actor && c.characterId !== world.mainId && c.characterId !== engagedId;
+  const known = existingId ? world.get(existingId) : null;
+  if (known && free(known)) return known;
+  const others = world.list().filter(free);
+  return newCharacter(custom, actor.kid) ?? pick(others.filter((c) => c.kid === actor.kid)) ?? pick(others) ?? null;
 }
 
 function setCaption(text, detail = "") {
-  caption.draw([{ text, size: 44 }, { text: detail, size: 34, color: "#b9b6ae" }]);
+  caption.draw([{ text, size: 42 }, { text: detail, size: 34, color: "#b9b6ae" }]);
   $("caption").textContent = detail ? `${text}  ${detail}` : text;
 }
 
 function drawHud() {
   hud.draw([
-    { text: `Monsters in the world: ${world.monsterCount}`, size: 50, bold: true, color: world.monsterCount ? "#ff6a45" : "#8fd694" },
-    { text: hudStatus, size: 36, color: "#b9b6ae" },
+    { text: `Monsters in the world: ${world.monsterCount}`, size: 50, bold: true, color: world.monsterCount ? "#b48cff" : "#8fd694" },
+    { text: [clock, hudStatus].filter(Boolean).join("   ·   "), size: 36, color: "#b9b6ae" },
   ]);
-  $("status").textContent = `${world.monsterCount} monster(s). ${hudStatus}`;
+  $("status").textContent = `${clock}. ${world.monsterCount} monster(s). ${hudStatus}`;
 }
 const setStatus = (text) => { hudStatus = text; drawHud(); };
 
-const describe = (c) => c.monsterState === NONE ? "at peace" : c.monsterState === SMALL ? "monster shrinking" : "carrying a monster";
+const describe = (c) => c.monsterState === NONE ? "no monster" : c.monsterState === SMALL ? "small monster" : "carrying a monster";
+const isFamily = (c) => family.includes(c);
 
 /** Brings windows, labels and Monsters in line with the world state. */
 function refresh() {
+  const evening = phase === "dinner";
   for (const c of world.list()) {
-    // A side window exists only while its character carries a Monster.
-    const isSide = c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE;
+    // During the day a side window exists only while its character carries a Monster.
+    // In the evening everyone we met, outside the family, gets a window.
+    const isSide = evening ? !isFamily(c) : c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE;
     if (isSide && !sidePanels.has(c.characterId) && freeSlots.length) {
       const slot = freeSlots.shift();
       const panel = new Panel(0.78);
@@ -249,33 +357,40 @@ function refresh() {
       }
       sidePanels.set(c.characterId, entry);
       c.activeWindowId = "window_" + c.characterId;
+      if (evening) showSide(c, eveningPrompt(c));
     }
     if (!isSide && sidePanels.has(c.characterId)) {
       const entry = sidePanels.get(c.characterId);
-      if (c.storyMode !== AI_SIDE_STORY) closeSide(c.characterId); // stepped into the main story
+      if (evening || c.storyMode !== AI_SIDE_STORY) closeSide(c.characterId); // back with the family, or in the main story
       else if (!entry.closing) {
         // Monster gone: let the dissolve play, then the window leaves the network.
         entry.closing = true;
         entry.panel.setMonster(NONE);
-        entry.panel.label(c.name, entry.detail || "at peace", entry.live);
-        setTimeout(() => { if (sidePanels.get(c.characterId) === entry) closeSide(c.characterId); refresh(); }, HOLD);
+        entry.panel.label(c.name, entry.detail || "no monster", entry.live);
+        setTimeout(() => { if (sidePanels.get(c.characterId) === entry && entry.closing) closeSide(c.characterId); refresh(); }, HOLD);
       }
     }
   }
   for (const [id, entry] of sidePanels) {
     const c = world.get(id);
-    if (entry.closing && c.monsterState !== NONE) entry.closing = false; // caught a new one before the window left
+    if (entry.closing && (evening || c.monsterState !== NONE)) entry.closing = false; // caught a new one, or evening came
     if (entry.closing) continue;
     entry.panel.setMonster(c.monsterState);
     entry.panel.label(c.name, entry.detail || describe(c), entry.live);
   }
-  const lead = world.main;
-  const other = otherId && otherId !== world.mainId ? world.get(otherId) : null;
-  mainPanel.setMonster(lead ? lead.monsterState : NONE, other ? other.monsterState : NONE);
-  if (lead) {
-    const facing = other ? `  ·  ${other.name}: ${other.monsterState === NONE ? "no monster" : other.monsterState === SMALL ? "small monster" : "monster"}` : "";
-    mainPanel.label(lead.name, describe(lead) + facing);
-    lead.activeWindowId = "window_main";
+
+  if (evening) {
+    const [mom, dad, child] = family;
+    mainPanel.setMonster(mom.monsterState, dad.monsterState, child.monsterState);
+    mainPanel.label("Dinner", family.map((c) => `${c.name}: ${describe(c)}`).join("   ·   "));
+  } else {
+    const lead = world.main;
+    const other = otherId && otherId !== world.mainId ? world.get(otherId) : null;
+    mainPanel.setMonster(lead ? lead.monsterState : NONE, other ? other.monsterState : NONE);
+    if (lead) {
+      mainPanel.label(lead.name, describe(lead) + (other ? `   ·   ${other.name}: ${describe(other)}` : ""));
+      lead.activeWindowId = "window_main";
+    }
   }
   drawHud();
 }
@@ -312,237 +427,254 @@ async function showSide(character, prompt) {
   } catch (error) { console.warn(`Side video for ${character.name} failed:`, error.message); }
 }
 
-async function proposeSideBeat(actor) {
-  if (health.claude) {
-    try {
-      const reply = await fetch("/direct", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actor, knownNames: world.list().map((c) => c.name), monsterCount: world.monsterCount }),
-      });
-      const beat = await reply.json();
-      if (reply.ok && (beat.action === "POSITIVE" || beat.action === "NEGATIVE") && beat.place) return beat;
-    } catch (error) { console.warn("Director unavailable:", error.message); }
-  }
+/** Asks the Global Story Director (Claude, on the server) for a plan. It sees the whole world. */
+async function askDirector(request) {
+  if (!health.claude) return null;
+  try {
+    const reply = await fetch("/direct", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...request, clock, world: world.list(), mainId: world.mainId, engagedId }),
+    });
+    if (reply.ok) return await reply.json();
+  } catch (error) { console.warn("Director unavailable:", error.message); }
+  return null;
+}
+
+/** Which side character acts next, and what they do. Falls back to a written beat without the director. */
+async function proposeSideBeat(carriers) {
+  const plan = await askDirector({ mode: "side", candidates: carriers.map((c) => c.characterId) });
+  const chosen = plan && carriers.find((c) => c.characterId === plan.actorId);
+  if (chosen && (plan.action === "POSITIVE" || plan.action === "NEGATIVE") && plan.place) return { actor: chosen, beat: plan };
+  const actor = carriers[sideTurn % carriers.length];
   const local = localSideBeat(actor);
-  return { action: local.action, place: local.scenario.place, beat: local.beat, other: null, caption: "", source: "local" };
+  return { actor, beat: { action: local.action, place: local.scenario.place, beat: local.beat, other: null, otherId: "", caption: "" } };
+}
+
+/** One step in one side story. The director only proposes; the state manager decides what changes. */
+async function sideBeat() {
+  const carriers = world.list().filter((c) => c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE && !(phase === "dinner" && isFamily(c)));
+  if (!carriers.length) return;
+  sideTurn++;
+  try {
+    const { actor, beat } = await proposeSideBeat(carriers);
+    if (!running || actor.storyMode !== AI_SIDE_STORY || actor.monsterState === NONE) return;
+    const other = someoneToMeet(actor, beat.other, beat.otherId);
+    if (!other || (phase === "dinner" && isFamily(other))) return;
+    const types = world.resolve(actor.characterId, other.characterId, beat.action, beat.caption).map((e) => e.type);
+    const entry = sidePanels.get(actor.characterId);
+    if (entry) {
+      // Always say where the Monster stands, so one kind act is not mistaken for the end.
+      const progress = beat.action === "NEGATIVE" ? (types.includes("MONSTER_REGROWN") ? "Monster back to full size." : "")
+        : types.includes("MONSTER_REMOVED") ? "Kind twice: monster gone." : "Kind 1 of 2: monster shrinks.";
+      const what = beat.caption || (beat.action === "NEGATIVE" ? `takes it out on ${other.name}` : `is kind to ${other.name}`);
+      entry.detail = `${what.replace(/\.$/, "")}. ${progress}`.trim();
+    }
+    actor.currentLocation = beat.place;
+    refresh();
+    showSide(actor, outcomePrompt(actor, other, beat.place, beat.action, types, beat.beat));
+    if (types.includes("SIDE_STORY_CREATED")) showSide(other, soloPrompt(other, "walks on alone, hurt and trying not to show it"));
+  } catch (error) { console.warn("Side story beat failed:", error); }
 }
 
 async function sideLoop() {
-  let turn = 0;
-  while (running) {
+  while (running && phase === "day") {
     await sleep(SIDE_EVERY);
-    if (!running) return;
-    const carriers = world.list().filter((c) => c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE);
-    if (!carriers.length) continue;
-    const actor = carriers[turn++ % carriers.length];
-    try {
-      // The director only proposes. The state manager decides what actually changes.
-      const beat = await proposeSideBeat(actor);
-      if (!running || actor.storyMode !== AI_SIDE_STORY || actor.monsterState === NONE) continue;
-      const other = someoneToMeet(actor, beat.other);
-      if (!other) continue;
-      const types = world.resolve(actor.characterId, other.characterId, beat.action, beat.caption).map((e) => e.type);
-      const entry = sidePanels.get(actor.characterId);
-      if (entry) {
-        // Always say where the Monster stands, so one kind act is not mistaken for the end.
-        const progress = beat.action === "NEGATIVE" ? (types.includes("MONSTER_REGROWN") ? "Monster back to full size." : "")
-          : types.includes("MONSTER_REMOVED") ? "Kind twice: monster gone." : "Kind 1 of 2: monster shrinks.";
-        const what = beat.caption || (beat.action === "NEGATIVE" ? `takes it out on ${other.name}` : `is kind to ${other.name}`);
-        entry.detail = `${what}. ${progress}`.replace(/\.\. /, ". ").trim();
-      }
-      actor.currentLocation = beat.place;
-      refresh();
-      showSide(actor, outcomePrompt(actor, other, beat.place, beat.action, types, beat.beat));
-      if (types.includes("SIDE_STORY_CREATED")) showSide(other, soloPrompt(other, "walks on alone, shaken and angry"));
-    } catch (error) { console.warn("Side story beat failed:", error); }
+    if (running && phase === "day") await sideBeat();
   }
 }
 
-// ---------------------------------------------------------------- the player's turn
+// ---------------------------------------------------------------- the main story
 
-const canSpeak = () => voice.mode !== "none";
-const turnHint = () => canSpeak()
-  ? "Hold the trigger (or Space) and speak."
-  : "No speech input here. Trigger or K: respond kindly. Grip or H: respond harshly.";
+/** The next encounter for the player's character: who they meet, where, what happens, and the three choices. */
+async function planEncounter(actor) {
+  const plan = await askDirector({ mode: "main", actorId: actor.characterId });
+  let recipient = null, scenario = null;
+  if (plan?.place && plan?.provocation && plan?.caption && validChoices(plan.choices)) {
+    recipient = someoneToMeet(actor, plan.other, plan.otherId);
+    scenario = { place: plan.place, visual: "{r} " + plan.provocation, caption: plan.caption, choices: plan.choices };
+  }
+  recipient ??= someoneToMeet(actor);
+  if (!recipient) return null;
+  engagedId = recipient.characterId; // reserved: side stories leave this person alone
+  return { actorId: actor.characterId, recipient, scenario: scenario ?? scenarioFor(actor) };
+}
 
-function waitForPlayer() {
+/** Offers the three choices in shuffled order. The main picture plays a few seconds, then holds until one is picked. */
+async function chooseFor(actor, scenario) {
+  const choices = [...scenario.choices].sort(() => Math.random() - 0.5);
   if (AUTO) {
-    const code = AUTO[autoIndex++ % AUTO.length];
-    return sleep(FAST ? 50 : 1500).then(() => code === "U" ? { transcript: "" } : { action: code === "P" ? "POSITIVE" : "NEGATIVE" });
+    const wanted = AUTO[autoIndex++ % AUTO.length] === "P" ? "POSITIVE" : "NEGATIVE";
+    await sleep(FAST ? 50 : 1500);
+    return choices.find((c) => c.action === wanted);
   }
-  return new Promise((resolve) => { pendingTurn = resolve; });
-}
-
-function answer(result) {
-  const resolve = pendingTurn;
-  pendingTurn = null;
-  mainPanel.highlight(false);
-  resolve?.(result);
-}
-
-function talkStart() {
-  if (!pendingTurn || talking) return;
-  if (!canSpeak()) return answer({ action: "POSITIVE" });
-  talking = true;
-  voice.start();
-  setStatus("Listening…");
-}
-
-async function talkEnd() {
-  if (!talking) return;
-  talking = false;
-  setStatus("Thinking…");
-  answer(await voice.stop());
-}
-
-const forced = (action) => { if (pendingTurn && !talking) answer({ action }); };
-
-addEventListener("keydown", (event) => {
-  if (event.repeat) return;
-  if (event.code === "Space") { event.preventDefault(); talkStart(); }
-  if (event.code === "KeyK") forced("POSITIVE");
-  if (event.code === "KeyH") forced("NEGATIVE");
-});
-addEventListener("keyup", (event) => { if (event.code === "Space") talkEnd(); });
-
-for (const index of [0, 1]) {
-  const controller = renderer.xr.getController(index); // trigger, or a pinch with hand tracking
-  controller.addEventListener("selectstart", talkStart);
-  controller.addEventListener("selectend", talkEnd);
-  controller.addEventListener("squeezestart", () => { if (!canSpeak()) forced("NEGATIVE"); });
-  scene.add(controller);
-}
-
-async function interpret(transcript, actor, recipient, situation) {
-  try {
-    const reply = await fetch("/interpret", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript, situation, actor, recipient: { name: recipient.name, appearanceDescription: recipient.appearanceDescription } }),
-    });
-    const verdict = await reply.json();
-    if (reply.ok && ["POSITIVE", "NEGATIVE", "UNCLEAR"].includes(verdict.action)) return verdict;
-  } catch (error) { console.warn("Interpreter unavailable:", error.message); }
-  return { action: "UNCLEAR", beat: "" };
-}
-
-/**
- * Fallback policy: silence, a failed transcription or an unclear reply never counts as
- * negative. The player is asked once more; after that the moment passes with no change.
- */
-async function playerTurn(actor, recipient, situation) {
-  // Only the main story waits for the player. Side stories keep living.
-  // Give Visko a few seconds to reach the new moment, then hold the picture until the player answers.
+  mainPanel.highlight(true);
+  setStatus(`What does ${actor.name} do?  Point and pull the trigger, or press 1, 2, 3.`);
   const freeze = setTimeout(() => main.hold(true), SETTLE);
-  try { return await askPlayer(actor, recipient, situation); }
-  finally { clearTimeout(freeze); main.hold(false); }
+  try { return await offerChoices(choices); }
+  finally { clearTimeout(freeze); main.hold(false); mainPanel.highlight(false); }
 }
-
-async function askPlayer(actor, recipient, situation) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    mainPanel.highlight(true);
-    setStatus((attempt ? "Didn't catch that. Once more: " : `${actor.name} is waiting for you. `) + turnHint());
-    const input = await waitForPlayer();
-    if (input.action) return { action: input.action, beat: "" };
-    if (!input.transcript) continue;
-    setCaption(situation, `${actor.name}: “${input.transcript}”`);
-    setStatus("Thinking…");
-    const verdict = await interpret(input.transcript, actor, recipient, situation);
-    if (verdict.action !== "UNCLEAR") return verdict;
-  }
-  return { action: "NEUTRAL", beat: "" };
-}
-
-// ---------------------------------------------------------------- the story
 
 function outcomeCaption(actor, recipient, action, types) {
   if (action === "NEGATIVE") {
     return types.includes("MONSTER_SPAWNED")
-      ? `A new monster grows on ${recipient.name}'s shoulder. ${actor.name} still has theirs. The story follows ${recipient.name} now.`
+      ? `A new monster grows on ${recipient.name}'s shoulder. ${actor.name} keeps theirs. The story follows ${recipient.name} now.`
       : `${recipient.name}'s monster swells back to full size. The story follows ${recipient.name} now.`;
   }
-  if (types.includes("MONSTER_REMOVED")) return `${actor.name}'s monster dissolves. The ripple stops here.`;
-  if (action === "POSITIVE") return `${actor.name}'s monster shrinks. One more kind answer and it is gone.`;
-  return `The moment passes. Nothing changes.`;
+  if (types.includes("MONSTER_REMOVED")) return `Kind twice. ${actor.name}'s monster is gone.`;
+  return `${actor.name}'s monster shrinks. It will take one more.`;
 }
 
-async function run() {
-  // Phase 1: the opening. No interaction, just how a Monster spreads.
-  const first = newCharacter();
-  const second = newCharacter();
-  world.seed(first.characterId);
+/** After an arc ends, the main window steps into another carrier's story: family first, then anyone. */
+function nextCarrier() {
+  const carriers = world.list().filter((c) => c.monsterState !== NONE);
+  return ["child", "mom", "dad"].map((role) => carriers.find((c) => c.role === role)).find(Boolean) ?? carriers[0] ?? null;
+}
+
+// Scene 1: an ordinary morning. No interaction, just how a Monster spreads.
+async function sceneKitchen() {
+  const [mom, dad, child] = family = [world.add(EPISODE.mom), world.add(EPISODE.dad), world.add(EPISODE.child)];
+  world.seed(mom.characterId);
   mainPanel.setTexture(main.texture);
-  setStatus("Watch.");
-  setCaption(`This is ${first.name}. It has been a long day, and something has been riding on ${first.name}'s shoulder since morning.`);
-  await main.show(soloPrompt(first), { cut: true });
-  await sleep(HOLD);
-
-  let scenario = pick(SCENARIOS);
-  engagedId = otherId = second.characterId;
+  engagedId = otherId = dad.characterId;
   refresh();
-  setCaption(captionFor(scenario, first, second));
-  await main.show(encounterPrompt(first, second, scenario));
-  await sleep(HOLD * 0.7);
-  otherId = first.characterId; // the main window now follows the second person; the first is the one they face
-  let types = world.resolve(first.characterId, second.characterId, "NEGATIVE", "opening").map((e) => e.type);
-  setCaption(`${first.name} snaps. A new monster grows on ${second.name}'s shoulder, and ${first.name} keeps the old one. Now there are two.`);
-  await main.show(outcomePrompt(first, second, scenario.place, "NEGATIVE", types));
-  showSide(first, soloPrompt(first, "walks away alone, still fuming"));
-  sideLoop();
+  setStatus("Watch.");
+  setCaption("The dishwasher is full of last night's dishes. Nobody started it.", "Mom is already tired. Something small and dark is sitting on her shoulder.");
+  await main.show(EPISODE.kitchenPrompt(mom, dad), { cut: true });
   await sleep(HOLD);
-  otherId = null;
 
-  // Phase 2: the player speaks for whoever the main window is following.
-  while (running) {
+  setCaption("MOM: “Why didn't you start the dishwasher last night?”", "DAD: “Sorry. I forgot.”  He cleaned the whole kitchen last night. He doesn't say so.");
+  otherId = mom.characterId; // the main window now follows Dad; Mom is the one he faces
+  const types = world.resolve(mom.characterId, dad.characterId, "NEGATIVE", "the dishwasher").map((e) => e.type);
+  await main.show(outcomePrompt(mom, dad, EPISODE.kitchenPlace, "NEGATIVE", types, "turns from the open dishwasher and asks a sharp, tired question"));
+  await sleep(HOLD);
+
+  setCaption("A new monster grows on Dad's shoulder. Mom keeps hers. Now there are two.", "The story follows Dad. Mom's morning goes on without us.");
+  showSide(mom, EPISODE.momAlonePrompt(mom));
+  sideLoop();
+  await sleep(HOLD * 0.7);
+  otherId = null;
+  engagedId = child.characterId;
+  return { actorId: dad.characterId, recipient: child, scenario: EPISODE.hallway }; // Scene 2 is fixed
+}
+
+// Scenes 2 and 3: the hallway, then the day. The player chooses for whoever the main window follows.
+async function theDay(firstPlan) {
+  let planned = Promise.resolve(firstPlan);
+  for (let turn = 0; running && turn < TURNS && world.monsterCount > 0; turn++) {
+    clock = CLOCK[Math.min(turn, CLOCK.length - 1)];
     let actor = world.main;
     if (!actor) {
-      const carrier = world.list().find((c) => c.monsterState !== NONE);
-      if (!carrier) break;
-      world.promote(carrier.characterId);
+      actor = nextCarrier();
+      if (!actor) break;
+      world.promote(actor.characterId);
       refresh();
-      actor = carrier;
       setStatus("");
-      setCaption(`But the ripple is still moving. ${actor.name} is carrying a monster. Step into ${actor.name}'s story.`,
-        actor.monsterState === SMALL ? `${actor.name} has already been kind once, so one more kind answer clears it.` : "");
+      setCaption(`The ripple is still moving. ${actor.name} is carrying a monster. Step into ${actor.name}'s day.`,
+        actor.monsterState === SMALL ? `${actor.name} has already been kind once. One more clears it.` : "");
       await main.show(soloPrompt(actor), { cut: true });
+      planned = planEncounter(actor);
       await sleep(HOLD * 0.7);
     }
 
-    const recipient = someoneToMeet(actor);
-    if (!recipient) break;
+    // The director planned this encounter while the last beat was playing.
+    let plan = await planned;
+    if (!plan || plan.actorId !== actor.characterId) plan = await planEncounter(actor);
+    if (!plan) break;
+    const { recipient, scenario } = plan;
     engagedId = otherId = recipient.characterId;
     refresh();
-    scenario = pick(SCENARIOS);
-    const situation = captionFor(scenario, actor, recipient);
     actor.currentLocation = scenario.place;
-    setCaption(situation, `What does ${actor.name} say?`);
+    setCaption(captionFor(scenario, actor, recipient));
     // A new place and a new person: start a fresh run. Morphing the running picture
     // keeps the previous scene's people in frame.
     await main.show(encounterPrompt(actor, recipient, scenario), { cut: true });
 
-    const verdict = await playerTurn(actor, recipient, situation);
-    if (!running) return;
-    if (verdict.action === "NEGATIVE") otherId = actor.characterId;
-    types = world.resolve(actor.characterId, recipient.characterId, verdict.action, situation).map((e) => e.type);
+    const picked = await chooseFor(actor, scenario);
+    if (!running || !picked) return;
+    if (picked.action === "NEGATIVE") otherId = actor.characterId;
+    const types = world.resolve(actor.characterId, recipient.characterId, picked.action, captionFor(scenario, actor, recipient)).map((e) => e.type);
     setStatus("");
-    setCaption(outcomeCaption(actor, recipient, verdict.action, types));
-    await main.show(outcomePrompt(actor, recipient, scenario.place, verdict.action, types, verdict.beat));
-    if (verdict.action === "NEGATIVE") showSide(actor, soloPrompt(actor, "walks away alone, still fuming"));
+    setCaption(afterFor(picked, actor, recipient), outcomeCaption(actor, recipient, picked.action, types));
+    await main.show(outcomePrompt(actor, recipient, scenario.place, picked.action, types, picked.beat));
+    if (picked.action === "NEGATIVE") showSide(actor, soloPrompt(actor, "walks away alone, still wound tight"));
     engagedId = null;
+    planned = world.main && turn + 1 < TURNS ? planEncounter(world.main) : Promise.resolve(null);
     await sleep(HOLD);
     otherId = null;
     refresh();
   }
+}
 
-  if (!running) return;
-  const clear = world.monsterCount === 0;
-  setStatus("");
-  setCaption(clear ? "No monsters left in the world. The ripple stopped with you." : "The story rests here.");
-  console.log("[ripple] finished, monsters:", world.monsterCount);
+// Scene 4: back to the dinner table. Everyone carries exactly what the day left them with.
+async function sceneDinner() {
+  const [mom, dad, child] = family;
+  phase = "dinner";
+  clock = "6:30 PM";
+  engagedId = otherId = null;
+  setStatus("Watch.");
+  setCaption("The same kitchen. A different evening.", "Dinner is ready. For a moment everything looks ordinary again.");
+  await main.show(EPISODE.dinnerPrompt(mom, dad, child), { cut: true });
+  refresh(); // the family leaves the side windows; everyone else we met gets an evening window
+  for (const [id, entry] of sidePanels) { entry.detail = ""; showSide(world.get(id), eveningPrompt(world.get(id))); }
+  refresh();
+  await sleep(HOLD);
+
+  setCaption("MIA: “Can you pass me the water?”   “Here you go.”", "Nobody mentions the dishwasher. In the background, it is running quietly.");
+  await sleep(HOLD);
+
+  // The camera pulls back: the kitchen becomes one Living Window among the others.
+  setCaption("Everyone we met is living their own evening.", "Some still carry monsters. Some carry smaller ones. Some have none.");
+  const pullMs = FAST ? 300 : 9000;
+  const started = performance.now();
+  const pull = setInterval(() => {
+    const t = Math.min((performance.now() - started) / pullMs, 1);
+    const eased = t * t * (3 - 2 * t);
+    stage.position.z = -VIEW_DISTANCE - 1.1 * eased;
+    mainPanel.group.scale.setScalar(1 - 0.35 * eased);
+  }, 16);
+  // The world is still alive: two more real beats play out while we watch.
+  await sleep(pullMs / 3); await sideBeat();
+  await sleep(pullMs / 3); await sideBeat();
+  await sleep(pullMs / 3 + HOLD * 0.5);
+  clearInterval(pull);
+
+  setCaption("The world is not completely healed. And it is not completely broken.");
+  await sleep(HOLD * 0.6);
+  await showTitle();
+}
+
+async function showTitle() {
+  // Fade to black, then the title, close enough to read over everything else.
+  const shade = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 }));
+  shade.position.set(0, 1.5, -1.6);
+  const title = new TextPlate(1.3, 0.42);
+  title.draw([{ text: "THE RIPPLE", size: 120, bold: true }, { text: "The ripple can stop with you.", size: 52, color: "#b9b6ae" }], "rgba(0,0,0,0)");
+  title.mesh.position.set(0.12, 1.5, -1.5);
+  title.mesh.material.opacity = 0;
+  scene.add(shade, title.mesh);
+  const fadeMs = FAST ? 200 : 3500;
+  const started = performance.now();
+  await new Promise((resolve) => {
+    const fade = setInterval(() => {
+      const t = Math.min((performance.now() - started) / fadeMs, 1);
+      shade.material.opacity = 0.94 * t;
+      title.mesh.material.opacity = t;
+      if (t >= 1) { clearInterval(fade); resolve(); }
+    }, 16);
+  });
+  setCaption("THE RIPPLE", "The ripple can stop with you.");
+  console.log("[ripple] finished, monsters:", world.monsterCount, "family:", family.map((c) => `${c.name}=${c.monsterState}`).join(" "));
   document.title = `RIPPLE_DONE monsters=${world.monsterCount} characters=${world.list().length}`;
-  await sleep(FAST ? 200 : 20000);
-  stop(clear ? "The ripple stopped with you." : "Stopped.");
+  await sleep(FAST ? 200 : 12000);
+}
+
+async function run() {
+  const firstPlan = await sceneKitchen();
+  await theDay(firstPlan);
+  if (!running) return;
+  await sceneDinner();
+  if (running) stop("It was never really about the dishwasher.");
 }
 
 async function begin() {
@@ -552,7 +684,6 @@ async function begin() {
   try {
     setStatus("Checking the server");
     health = await (await fetch("/health")).json();
-    await voice.init(Boolean(health.stt));
     const lost = () => { if (running) stop("The video session ended."); };
     main = new LiveStream("Main story", { mock: MOCK, onStatus: (s) => setStatus(`Main video: ${s}`), onLost: lost });
     setStatus("Connecting the video");
@@ -567,7 +698,9 @@ async function begin() {
 
 async function stop(message = "Stopped.") {
   running = false;
-  if (pendingTurn) answer({ action: "NEUTRAL" });
+  if (pendingChoice) { pendingChoice.resolve(null); pendingChoice = null; }
+  for (const button of choiceButtons) button.group.visible = false;
+  $("choices").replaceChildren();
   for (const entry of sidePanels.values()) entry.connected.then(() => entry.stream?.close());
   await main?.close();
   setStatus(message + " Reload the page to play again.");
@@ -594,11 +727,16 @@ if (xrModes.includes(true)) {
     : "XR needs http://localhost or https. On Quest: adb reverse tcp:8787 tcp:8787, then open localhost:8787/ripple/";
 }
 
-setCaption("The Ripple. Negative moments spread from person to person, and you can stop them.", "Press Begin, allow the microphone, then enter XR.");
+setCaption("The Ripple. Episode 01: The Dishwasher.", "Press Begin, then enter XR.");
 drawHud();
-mainPanel.label("The Ripple", MOCK ? "mock video" : "");
+mainPanel.label("The Ripple", MOCK ? "mock video" : "It was never really about the dishwasher.");
 renderer.setAnimationLoop((time) => {
   for (const panel of panels) panel.tick(time);
+  // In the headset, light up the choice a controller is pointing at.
+  if (renderer.xr.isPresenting) {
+    for (const { ray } of controllers) ray.visible = Boolean(pendingChoice);
+    if (pendingChoice) setHover(Math.max(...controllers.map(({ controller }) => choiceUnder(controller))));
+  }
   renderer.render(scene, camera);
 });
-if (AUTO) begin();
+if (AUTO || params.has("begin")) begin(); // ?begin=1 starts without a click (flat screen only)

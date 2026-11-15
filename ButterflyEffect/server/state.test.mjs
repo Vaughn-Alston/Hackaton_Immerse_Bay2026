@@ -94,3 +94,24 @@ test("side stories use the same rules and count toward the world total", () => {
   assert.equal(world.get("a").monsterState, NONE);
   assert.equal(world.monsterCount, 2);
 });
+
+// ---------------------------------------------------------------- Episode 01 content
+import { EPISODE, SCENARIOS, KID_SCENARIOS, validChoices, scenarioFor, localSideBeat } from "./public/ripple/content.js";
+
+test("every choice moment offers exactly two harsh answers and one kind one", () => {
+  for (const scenario of [EPISODE.hallway, ...SCENARIOS, ...KID_SCENARIOS]) {
+    assert.ok(validChoices(scenario.choices), `choices for ${scenario.id}`);
+    for (const c of scenario.choices) assert.ok(c.beat && c.after, `beat and after for ${scenario.id}`);
+  }
+  assert.equal(validChoices([{ action: "POSITIVE", label: "a" }, { action: "POSITIVE", label: "b" }, { action: "NEGATIVE", label: "c" }]), false);
+});
+
+test("people head to their own places first: Dad to the clinic, Mia to school", () => {
+  const world = new World();
+  const dad = world.add(EPISODE.dad), mia = world.add(EPISODE.child);
+  assert.equal(scenarioFor(dad).id, "clinic");
+  assert.equal(scenarioFor(mia).id, "classroom");
+  dad.monsterState = FULL;
+  for (let i = 0; i < 20; i++) assert.notEqual(localSideBeat(dad).scenario.id, "clinic"); // the clinic is only on Dad's route
+  for (let i = 0; i < 20; i++) assert.ok(KID_SCENARIOS.includes(scenarioFor(mia)));
+});
