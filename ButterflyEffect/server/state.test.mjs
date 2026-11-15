@@ -145,3 +145,39 @@ test("a prompt mentions a creature exactly once per carrier, and never as an ani
   try { assert.equal(mentions(all.map(() => EPISODE.kitchenPrompt(mom, dad)).join(" ")), 0); }
   finally { setCreatures(true); }
 });
+
+import { layoutRadial, FANS } from "./public/ripple/layout.js";
+
+test("the graph layout is a radial tree around the main window", () => {
+  // hub -> a -> b -> c, a -> d, hub -> e -> f, e -> g, and a loose node z
+  const links = [["hub", "a"], ["a", "b"], ["b", "c"], ["a", "d"], ["hub", "e"], ["e", "f"], ["e", "g"]].map(([from, to]) => ({ from, to }));
+  const nodes = ["a", "b", "c", "d", "e", "f", "g", "z"];
+  const placement = layoutRadial(nodes, links, new Set(["hub"]));
+  assert.equal(placement.size, nodes.length);
+  const distance = (p) => Math.hypot(p.x, p.y);
+
+  for (const [id, p] of placement) {
+    assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), id);
+    if (p.parent !== null) {
+      const parent = placement.get(p.parent);
+      assert.equal(p.depth, parent.depth + 1);
+      assert.ok(distance(p) > distance(parent), `${id} sits further out than ${p.parent}`);
+    } else {
+      assert.equal(p.depth, 1);
+      assert.ok(FANS.some(([from, to]) => p.angle >= from && p.angle <= to), `${id} sits beside the main window, clear of the count above and the choices below`);
+    }
+  }
+  assert.equal(placement.get("z").loose, true);
+  assert.equal(placement.get("b").parent, "a");
+
+  // Ring windows are about 0.48 m wide; no two centres may be closer than that.
+  const all = [...placement];
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+    const gap = Math.hypot(all[i][1].x - all[j][1].x, all[i][1].y - all[j][1].y);
+    assert.ok(gap > 0.45, `${all[i][0]} and ${all[j][0]} overlap (${gap.toFixed(2)} m apart)`);
+  }
+
+  // One branch on its own starts off to the side, not straight above the main window.
+  const single = layoutRadial(["a"], [{ from: "hub", to: "a" }], new Set(["hub"])).get("a");
+  assert.ok(single.x > 1 && Math.abs(single.y) < 0.6);
+});

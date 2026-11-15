@@ -61,8 +61,13 @@ export class LiveStream {
     await ready;
   }
 
-  /** Shows a new beat. `cut` starts a fresh run (new person or place); otherwise the picture morphs. */
-  show(prompt, { cut = false } = {}) {
+  /**
+   * Shows a new beat. Every beat starts a fresh run. Morphing the running picture into a new
+   * prompt blends the two for a few seconds, and during that blend the creature from the old
+   * picture sits beside the one from the new, so a person briefly (or permanently) has two.
+   * Pass { cut: false } only for a change that leaves every creature exactly as it was.
+   */
+  show(prompt, { cut = true } = {}) {
     this.queue = this.queue.catch(() => {}).then(() => this.apply(prompt, cut));
     return this.queue;
   }

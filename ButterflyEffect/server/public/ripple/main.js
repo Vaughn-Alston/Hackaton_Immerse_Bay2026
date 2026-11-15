@@ -15,6 +15,7 @@ import {
   soloPrompt, encounterPrompt, outcomePrompt, exitPrompt, eveningPrompt, localSideBeat, setCreatures,
 } from "./content.js";
 import { LiveStream } from "./stream.js";
+import { layoutRadial } from "./layout.js";
 
 const params = new URLSearchParams(location.search);
 const MOCK = params.has("mock");
@@ -179,18 +180,22 @@ class Panel {
     this.border.material.color.set(0xd9bcff);
   }
 
-  /** Starts the window where its character came from and lets it glide out to its place. */
-  glideTo(position, rotationY, from = new THREE.Vector3(0, 0, 0.12), scale = 1) {
-    this.home = { position, rotationY, scale };
+  /** Starts the window, small, where its character came from. */
+  startFrom(from = new THREE.Vector3(0, 0, 0.12)) {
+    this.group.rotation.order = "YXZ";
     this.group.position.copy(from);
     this.group.scale.setScalar(0.35);
   }
+
+  /** Where the layout wants this window. It eases there, turned and tilted to face the viewer. */
+  glideTo(position, rotationY, rotationX, scale) { this.home = { position, rotationY, rotationX, scale }; }
 
   tick(time) {
     if (this.home) {
       const ease = FAST ? 1 : 0.07; // test runs jump straight into place
       this.group.position.lerp(this.home.position, ease);
       this.group.rotation.y = THREE.MathUtils.lerp(this.group.rotation.y, this.home.rotationY, ease);
+      this.group.rotation.x = THREE.MathUtils.lerp(this.group.rotation.x, this.home.rotationX, ease);
       this.group.scale.setScalar(THREE.MathUtils.lerp(this.group.scale.x, this.home.scale, ease));
     }
     for (const m of this.monsters) {
@@ -213,10 +218,9 @@ const caption = new TextPlate(1.6, 0.3);
 caption.mesh.position.y = -0.85; // -0.70 to -1.00, with the choices below it
 stage.add(hud.mesh, caption.mesh);
 
-// Side windows sit on an arc around the viewer: [angle in degrees, height].
-const SLOTS = [[-44, 0.3], [44, 0.3], [-44, -0.38], [44, -0.38], [-70, 0.3], [70, 0.3], [-70, -0.38], [70, -0.38]];
-const freeSlots = SLOTS.map((_, i) => i);
-const sidePanels = new Map(); // characterId -> { panel, slot, detail, stream, connected, live }
+// Side windows are placed by layoutRadial(): rings around the main window, like a network diagram.
+const MAX_SIDES = 8;
+const sidePanels = new Map(); // characterId -> { panel, detail, stream, connected, live }
 
 // ---------------------------------------------------------------- choices
 
@@ -374,21 +378,15 @@ function refresh() {
     // During the day a side window exists only while its character carries a Monster.
     // In the evening everyone we met, outside the family, gets a window.
     const isSide = evening ? !isFamily(c) : c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE && !heldBack.has(c.characterId);
-    if (isSide && !sidePanels.has(c.characterId) && freeSlots.length) {
-      const slot = freeSlots.shift();
+    if (isSide && !sidePanels.has(c.characterId) && sidePanels.size < MAX_SIDES) {
       const panel = new Panel(0.78);
-      const [degrees, y] = SLOTS[slot];
-      const angle = THREE.MathUtils.degToRad(degrees);
-      // The viewer stands at (0, 0, VIEW_DISTANCE) in stage space.
       // The window branches out from whoever gave this person their Monster (or from the main window).
       const source = links.findLast((link) => link.to === c.characterId);
-      const origin = source && sidePanels.get(source.from)?.panel.group.position.clone();
+      panel.startFrom(source && sidePanels.get(source.from)?.panel.group.position.clone() || undefined);
       // Mom, Dad and Mia are the main characters: their windows are bigger and brightly framed.
-      const lead = isFamily(c);
-      if (lead) panel.feature();
-      panel.glideTo(new THREE.Vector3(Math.sin(angle) * VIEW_DISTANCE, y, VIEW_DISTANCE - Math.cos(angle) * VIEW_DISTANCE), -angle, origin || undefined, lead ? 1.15 : 1);
+      if (isFamily(c)) panel.feature();
       stage.add(panel.group);
-      const entry = { panel, slot, detail: "", stream: null, connected: Promise.resolve(false), live: false };
+      const entry = { panel, detail: "", stream: null, connected: Promise.resolve(false), live: false };
       if ([...sidePanels.values()].filter((e) => e.stream).length < LIVE_SIDES) {
         entry.stream = new LiveStream(c.name, { mock: MOCK });
         entry.connected = entry.stream.connect().then(() => true, (error) => {
@@ -434,6 +432,7 @@ function refresh() {
     }
   }
   drawHud();
+  arrangeWindows();
   // Now that every window is in place, let any newly spawned Monster split off and travel to its new host.
   for (const link of links) if (!link.copied) { link.copied = true; flyCopy(link); }
 }
@@ -469,6 +468,32 @@ const viewer = new THREE.Vector3(0, 0, VIEW_DISTANCE); // where the viewer stand
 const BEHIND = -10; // render order: before every window
 const UP = new THREE.Vector3(0, 1, 0);
 const endA = new THREE.Vector3(), endB = new THREE.Vector3(), along = new THREE.Vector3();
+
+/** Characters shown in the main window. They are the centre of the graph. */
+function hubIds() {
+  if (phase === "dinner") return new Set(family.map((c) => c.characterId));
+  return new Set([world.mainId, otherId].filter(Boolean));
+}
+
+/**
+ * Re-runs the radial layout and tells every side window where to glide. Called whenever a
+ * window appears or leaves, a link is added, or the main window follows someone new.
+ */
+function arrangeWindows() {
+  const placement = layoutRadial([...sidePanels.keys()], links, hubIds());
+  for (const [id, entry] of sidePanels) {
+    const place = placement.get(id);
+    // The layout is flat (metres right of and above the main window). Wrap it around the viewer,
+    // who stands at (0, 0, VIEW_DISTANCE) in stage space, so every window faces them.
+    const yaw = place.x / VIEW_DISTANCE, pitch = place.y / VIEW_DISTANCE;
+    const position = new THREE.Vector3(
+      Math.sin(yaw) * Math.cos(pitch) * VIEW_DISTANCE,
+      Math.sin(pitch) * VIEW_DISTANCE,
+      VIEW_DISTANCE - Math.cos(yaw) * Math.cos(pitch) * VIEW_DISTANCE,
+    );
+    entry.panel.glideTo(position, -yaw, pitch, place.scale * (entry.panel.featured ? 1.15 : 1));
+  }
+}
 
 /** The window a character is shown in right now: the main window, their side window, or none. */
 function windowOf(id) {
@@ -550,7 +575,6 @@ function closeSide(id) {
   sidePanels.delete(id);
   console.log("[ripple] side window closed:", id, "windows left:", sidePanels.size);
   entry.panel.dispose();
-  freeSlots.push(entry.slot);
   entry.connected.then(() => entry.stream?.close());
 }
 
@@ -560,7 +584,7 @@ async function showSide(character, prompt, cut = false) {
   const entry = sidePanels.get(id);
   try {
     if (!entry?.stream || !(await entry.connected) || sidePanels.get(id) !== entry) return;
-    await entry.stream.show(prompt, { cut: cut || !entry.live });
+    await entry.stream.show(prompt); // always a fresh run: see LiveStream.show
     if (sidePanels.get(id) !== entry || entry.live) return;
     entry.live = true;
     entry.panel.setTexture(entry.stream.texture);
@@ -763,8 +787,8 @@ async function theDay(firstPlan) {
     const types = world.resolve(actor.characterId, recipient.characterId, picked.action, captionFor(scenario, actor, recipient)).map((e) => e.type);
     setStatus("");
     setCaption(afterFor(picked, actor, recipient), outcomeCaption(actor, recipient, picked.action, types));
-    // A harsh outcome starts a fresh run, so a creature from the previous picture cannot linger beside the new one.
-    await main.show(outcomePrompt(actor, recipient, scenario.place, picked.action, types, picked.beat), { cut: leaves });
+    // Every outcome is a fresh run, so a creature from the previous picture cannot linger beside the new one.
+    await main.show(outcomePrompt(actor, recipient, scenario.place, picked.action, types, picked.beat));
     engagedId = null;
     planned = world.main && turn + 1 < TURNS ? planEncounter(world.main) : Promise.resolve(null);
     await sleep(HOLD);
