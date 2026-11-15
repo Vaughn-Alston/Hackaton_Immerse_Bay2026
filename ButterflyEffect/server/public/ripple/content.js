@@ -10,14 +10,45 @@
 import { FULL, SMALL } from "./state.js";
 
 export const STYLE =
-  "Third-person cinematic camera, everyone clearly readable in the same frame, realistic acting, " +
+  "Subjective third-person cinematic camera, realistic acting, " +
   "subtle facial expressions, naturalistic light, shallow depth of field, photoreal, 35mm film look.";
+
+// ACT_004 (mid-task freeze) flowing into ACT_002 (downward distant gaze): a quiet,
+// playable thought process that reads in close-up without adding explanatory dialogue.
+export const CONTEMPLATION_CLOSEUP =
+  "Contemplation close-up: abruptly freeze mid-task and hold a small breath; the eyes widen only slightly, then settle into a heavy-lidded downward distant gaze. " +
+  "The brow gathers, the jaw shifts once, the lips part as if to answer and close again. Hold the silence long enough to see the impulse being examined, " +
+  "then let the eyes return deliberately to the other person. No speaking before the choice";
+
+export const RESPONSE_EYELINE_RULE =
+  "When responding, turn the face and upper body toward the other person and make readable eye contact. " +
+  "The only exception is an explicitly avoidant action such as ignoring them, looking away, turning one's back or walking past; then the broken eyeline is the action";
+
+// The viewer always makes the choice for the Monster's carrier. Keep that person and the
+// creature in the foreground so a short demo never reads as an impartial conversation.
+export const CARRIER_DECISION_CAMERA =
+  `Carrier-aligned shot: ${CONTEMPLATION_CLOSEUP}. Then move just behind the Monster-carrier's left shoulder. ` +
+  "Keep the carrier's cheek and shoulder large in the near foreground with the creature unmistakably visible beside their neck; " +
+  "center the other person's face in the carrier's eyeline. The audience is attached to the carrier's side of the conversation, " +
+  "never centered neutrally between both people and never a first-person view";
+
+export const CARRIER_OUTCOME_CAMERA =
+  "Stay on the same carrier-aligned side of the eyeline: the Monster-carrier remains large in the near foreground with the creature visible, " +
+  "while the other person's face is centered beyond them. Begin focus on the carrier making the response, then rack focus to the other person's reaction " +
+  "and the creature's movement. Do not cut to a neutral, symmetrical two-shot";
 
 // One description of the family kitchen, so the morning and the evening are the same room.
 const KITCHEN = "A comfortable family kitchen with pale oak cabinets, a white tiled splashback, a stainless-steel dishwasher under the counter and a round wooden dining table by the window";
 
+const voiceProfileFor = (appearance, kid) => {
+  if (kid) return "child";
+  if (/\bwoman\b/i.test(appearance)) return "adult-woman";
+  if (/\bman\b/i.test(appearance)) return "adult-man";
+  return "adult-neutral";
+};
 const person = ([name, appearanceDescription, personality, kid = false, extra = {}]) =>
-  ({ characterId: "person_" + name.toLowerCase(), name, appearanceDescription, personality, kid, ...extra });
+  ({ characterId: "person_" + name.toLowerCase(), name, appearanceDescription, personality, kid,
+    voiceProfile: extra.voiceProfile ?? voiceProfileFor(appearanceDescription, kid), ...extra });
 
 const N = "NEGATIVE", P = "POSITIVE";
 const choice = (action, label, beat, after) => ({ action, label, beat, after });
@@ -46,6 +77,11 @@ export function creatureCount(count) {
 const carrying = (...people) => people.filter((c) => c.monsterState === FULL || c.monsterState === SMALL).length;
 
 const cap = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+const performance = (character) => {
+  const emotion = character.emotionalProfile;
+  if (!emotion) return "";
+  return ` Performance: ${emotion.expression}. ${emotion.bodyLanguage}. ${emotion.performanceDirection}`;
+};
 const fill = (text, a, r) =>
   text.replaceAll("{a}", a.appearanceDescription).replaceAll("{r}", r.appearanceDescription)
       .replaceAll("{A}", a.name).replaceAll("{R}", r.name);
@@ -62,9 +98,21 @@ export const EPISODE = {
 
   kitchenPlace: `${KITCHEN}, soft cool morning sunlight`,
 
+  kitchenResponse: {
+    id: "dishwasher-response",
+    place: `${KITCHEN}, soft cool morning sunlight`,
+    visual: "{a} stands beside the open dishwasher, deciding how to address {r}, who is checking a work bag",
+    caption: "{A} finds the dishwasher still full. {R} is getting ready to leave. How does {A} speak to him?",
+    choices: [
+      choice(N, "Face him. “Why didn't you start the dishwasher last night? Do I have to remember everything?”", "turns fully toward him, meets his eyes and asks sharply, one hand still gripping the dishwasher rack", "The words land. Her jaw stays tight; saying them did not make her feel better."),
+      choice(N, "Look at the dishes, then at him. “Of course you left this for me.”", "faces him with a flat, exhausted stare and delivers the accusation quietly", "She says it softly. The resentment still crosses the room, and she feels no lighter."),
+      choice(P, "Take a breath. “I know we were both tired. Can you start it before you go?”", "releases the dishwasher rack, turns toward him and asks calmly, holding honest eye contact", "The work is still there. Asking without wounding him makes the room feel lighter."),
+    ],
+  },
+
   /** Scene 1, before the question: the full dishwasher that nobody started. */
   kitchenPrompt(mom, dad) {
-    return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated.${creature(mom, "her")} Behind her, ${dad.appearanceDescription} is getting ready to leave for work, checking his bag.${creature(dad, "his")}${creatureCount(carrying(mom, dad))} Medium-wide two-shot. ${STYLE}`;
+    return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} pulls open the dishwasher and finds it full of dirty dishes from the night before. A dark-purple wisp gathers at her left shoulder and solidifies; she feels only the emotional weight, never sees it.${performance(mom)}${creature(mom, "her")}${creatureCount(carrying(mom, dad))} Behind her, ${dad.appearanceDescription} is getting ready to leave for work, checking his bag.${performance(dad)}${creature(dad, "his")} Extreme close-up on Mom after the creature forms. ${CONTEMPLATION_CLOSEUP}. Dad remains soft and distant in the background of her eyeline. Do not cut away before the choice appears. ${STYLE}`;
   },
 
   /** Scene 1, the scene breaking up: Dad walks out, and the camera goes with him. */
@@ -249,7 +297,7 @@ export function exitPrompt(leaver, stayer, place) {
 export function encounterPrompt(a, r, scenario) {
   const pressure = monsterOn(a) ? ` ${monsterOn(a)}, leaning in close to their ear as if whispering.` : "";
   const other = scenario.innocent ? "looks up at them hopefully, waiting for an answer" : "looks back, unsure what is coming";
-  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(a.appearanceDescription)} stops, jaw tightening, a long tired breath, about to answer.${pressure} The other person, ${r.appearanceDescription}, ${other}.${creature(r)}${creatureCount(carrying(a, r))} Medium two-shot, steady camera. ${STYLE}`;
+  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(a.appearanceDescription)} stops, jaw tightening, a long tired breath, about to answer.${pressure} The other person, ${r.appearanceDescription}, ${other}.${creature(r)}${creatureCount(carrying(a, r))} ${CARRIER_DECISION_CAMERA}. ${STYLE}`;
 }
 
 /**
@@ -266,7 +314,7 @@ export function outcomePrompt(a, r, place, action, types, beat = "") {
     const spread = types.includes("MONSTER_SPAWNED")
       ? "The dark-purple creature on the first person's left shoulder splits in two: the original stays exactly where it is, and its copy, a small purple shadow, drifts across to the other person, settles on their left shoulder beside the neck and grows to the size of a cat, opening two violet eyes"
       : "The dark-purple creature on the first person's left shoulder stays exactly where it is, and the smaller creature already on the other person's left shoulder swells back to the size of a cat";
-    body = `${A} ${beat || "snaps harshly, face hard"}, speaking to ${R}, whose face falls, hurt and trying not to show it. ${spread}. By the end each of the two people carries exactly one creature`;
+    body = `${A} ${beat || "snaps harshly, face hard"}, speaking to ${R}, whose face falls, hurt and trying not to show it. The first person's anger brings no relief: their jaw remains tight, shoulders rigid and expression hollow after the words leave them. ${spread}. By the end each of the two people carries exactly one creature`;
     count = 2;
   } else if (action === P && types.includes("MONSTER_REMOVED")) {
     body = `${A} ${beat || "smiles tiredly and speaks gently"}, speaking to ${R}, who relaxes and smiles back. The tiny dark-purple creature on the first person's left shoulder loses its shape, thins into pale drifting mist and vanishes completely. Warm clean light fills the frame`;
@@ -279,7 +327,7 @@ export function outcomePrompt(a, r, place, action, types, beat = "") {
     count = carrying(a, r);
   }
   const total = action === N ? "" : creatureCount(count).replace("There is", "At the end there is").replace("There are", "At the end there are");
-  return `${place}. ${body}.${total} Medium two-shot, steady camera. ${STYLE}`;
+  return `${place}. ${body}.${total} ${RESPONSE_EYELINE_RULE}. ${CARRIER_OUTCOME_CAMERA}. ${STYLE}`;
 }
 
 /** A side-story beat without the director: a fitting situation and one of its three written answers. */
