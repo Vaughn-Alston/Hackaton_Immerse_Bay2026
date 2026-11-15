@@ -764,11 +764,11 @@ async function sceneKitchen() {
   refresh();
   setStatus("");
   setCaption("The dishwasher is full of last night's dishes. Nobody started it.", "Mom is already tired. Something small and dark is sitting on her shoulder.");
-  await main.show(EPISODE.kitchenPrompt(mom, dad), { cut: true });
+  await main.show(EPISODE.kitchenPrompt(mom), { cut: true });
   await sleep(HOLD);
 
   setCaption("MOM: “Why didn't you start the dishwasher last night?”", "DAD: “Sorry. I forgot.”  He cleaned the whole kitchen last night. He doesn't say so.");
-  otherId = mom.characterId; // the main window now follows Dad; Mom is the one he faces
+  otherId = null; // the main window now follows Dad, and the shot shows him alone
   heldBack.add(mom.characterId); // her side window waits until we have seen the scene break up
   const types = world.resolve(mom.characterId, dad.characterId, "NEGATIVE", "the dishwasher").map((e) => e.type);
   await main.show(outcomePrompt(mom, dad, EPISODE.kitchenPlace, "NEGATIVE", types, "turns from the open dishwasher and asks a sharp, tired question"), { cut: true });
@@ -825,7 +825,7 @@ async function theDay(firstPlan) {
     const picked = await chooseFor(actor, scenario);
     if (!running || !picked) return;
     const leaves = picked.action === "NEGATIVE";
-    if (leaves) { otherId = actor.characterId; heldBack.add(actor.characterId); }
+    if (leaves) { otherId = null; heldBack.add(actor.characterId); } // the next shot shows the hurt person alone
     const types = world.resolve(actor.characterId, recipient.characterId, picked.action, captionFor(scenario, actor, recipient)).map((e) => e.type);
     setStatus("");
     setCaption(afterFor(picked, actor, recipient), outcomeCaption(actor, recipient, picked.action, types));

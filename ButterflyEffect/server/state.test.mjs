@@ -118,32 +118,33 @@ test("people head to their own places first: Dad to the clinic, Mia to school", 
 
 import { outcomePrompt, encounterPrompt, exitPrompt, soloPrompt, setCreatures } from "./public/ripple/content.js";
 
-test("a prompt mentions a creature exactly once per carrier, and never as an animal or a count", () => {
+test("every shot describes at most one creature (three only at the dinner table), never as an animal or a count", () => {
   const world = new World();
   const mom = world.add(EPISODE.mom), dad = world.add(EPISODE.dad), mia = world.add(EPISODE.child);
   world.seed(mom.characterId);
   const mentions = (prompt) => (prompt.match(/creature/g) ?? []).length;
 
-  assert.equal(mentions(EPISODE.kitchenPrompt(mom, dad)), 1);                               // only Mom carries one
-  assert.equal(mentions(outcomePrompt(mom, dad, "A kitchen", "NEGATIVE", ["MONSTER_SPAWNED"])), 2); // one each afterwards
+  assert.equal(mentions(EPISODE.kitchenPrompt(mom)), 1);                                    // Mom alone with hers
+  const harsh = outcomePrompt(mom, dad, "A kitchen", "NEGATIVE", ["MONSTER_SPAWNED"]);
+  assert.equal(mentions(harsh), 1);                                                         // the hurt person alone, with the new one
+  assert.ok(harsh.includes("stands alone in the frame") && harsh.includes("light blue shirt"));
   world.resolve(mom.characterId, dad.characterId, "NEGATIVE");
-  assert.equal(mentions(encounterPrompt(dad, mia, EPISODE.hallway)), 1);                    // Dad has one, Mia none
-  assert.equal(mentions(exitPrompt(dad, mia, "A hallway")), 0);                             // only Mia is in frame
+  world.resolve(dad.characterId, mia.characterId, "NEGATIVE");
+  assert.equal(mentions(encounterPrompt(mia, dad, EPISODE.hallway)), 1);                    // both carry one; only the main character's is described
+  assert.equal(mentions(exitPrompt(dad, mia, "A hallway")), 1);
   assert.equal(mentions(soloPrompt(dad)), 1);
   const once = outcomePrompt(dad, mia, "A hallway", "POSITIVE", ["MONSTER_SHRUNK"]);
   assert.equal(mentions(once), 1);
   assert.ok(once.includes("tiny dim dark-purple"));                                         // kind once: small at the end
   assert.equal(mentions(outcomePrompt(dad, mia, "A hallway", "POSITIVE", ["MONSTER_REMOVED"])), 0); // kind twice: none
-  assert.equal(mentions(EPISODE.dinnerPrompt(mom, dad, mia)), 2);
+  assert.equal(mentions(EPISODE.dinnerPrompt(mom, dad, mia)), 3);                           // the one shot that shows everyone's
 
-  const all = [EPISODE.kitchenPrompt(mom, dad), once, encounterPrompt(dad, mia, EPISODE.hallway), EPISODE.dinnerPrompt(mom, dad, mia),
-    outcomePrompt(mom, dad, "A kitchen", "NEGATIVE", ["MONSTER_SPAWNED"])];
+  const all = [EPISODE.kitchenPrompt(mom), harsh, once, encounterPrompt(dad, mia, EPISODE.hallway), EPISODE.dinnerPrompt(mom, dad, mia)];
   for (const prompt of all) {
-    assert.ok(!/\btwo\b/i.test(prompt.replace("two brown braids", "")), "no stray number near a creature: " + prompt);
-    assert.ok(!/\bcat\b|kitten|mouse|splits|copy|drifts|exactly|more than one|in total|,,/i.test(prompt), prompt);
+    assert.ok(!/\\bcat\\b|kitten|mouse|splits|copy|drifts|exactly|more than one|in total|,,|\\btwo\\b/i.test(prompt), prompt);
   }
   setCreatures(false);
-  try { assert.equal(mentions(all.map(() => EPISODE.kitchenPrompt(mom, dad)).join(" ")), 0); }
+  try { assert.equal(mentions(EPISODE.kitchenPrompt(mom) + harsh.replace(/./g, "") + outcomePrompt(mom, dad, "A kitchen", "NEGATIVE", [])), 0); }
   finally { setCreatures(true); }
 });
 

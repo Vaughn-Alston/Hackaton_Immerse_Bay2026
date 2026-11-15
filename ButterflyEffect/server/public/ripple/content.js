@@ -78,8 +78,8 @@ export const EPISODE = {
   kitchenPlace: `${KITCHEN}, soft cool morning sunlight`,
 
   /** Scene 1, before the question: the full dishwasher that nobody started. */
-  kitchenPrompt(mom, dad) {
-    return `${this.kitchenPlace}. ${cap(look(mom))} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated. Behind her, ${look(dad)} is getting ready to leave for work, checking his bag. Medium-wide shot of both people. ${STYLE}`;
+  kitchenPrompt(mom) {
+    return `${this.kitchenPlace}. ${cap(look(mom))} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated. Nobody else is in the frame. Medium shot. ${STYLE}`;
   },
 
   /** Scene 1, the scene breaking up: Dad walks out alone, and the camera goes with him. */
@@ -263,25 +263,30 @@ export function exitPrompt(leaver, stayer, place) {
  */
 export function encounterPrompt(a, r, scenario) {
   const other = scenario.innocent ? "looks up at them hopefully, waiting for an answer" : "looks back, unsure what is coming";
-  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(look(a))} stops, jaw tightening, a long tired breath, about to answer. The other person, ${look(r)}, ${other}. Medium shot of both people, steady camera. ${STYLE}`;
+  // Only the main character's creature is described. A second creature in the same shot is
+  // where the model starts putting two on one person; the window markers show the other's.
+  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(look(a))} stops, jaw tightening, a long tired breath, about to answer. The other person, ${r.appearanceDescription}, ${other}. Medium shot of both people, steady camera. ${STYLE}`;
 }
 
 /**
  * What the camera shows once the rules have taken effect. `types` are the event types the state
- * manager produced (or will produce). The prompt states who has a creature at the end; it never
- * describes one appearing, splitting, shrinking or leaving, because the video model draws
- * whatever a prompt names, wherever the sentence starts.
+ * manager produced (or will produce).
+ *
+ * Rule for every shot: at most one creature is ever described. A harsh outcome is therefore
+ * framed on the hurt person alone, with their new creature, rather than on both people with
+ * one each. The prompt states the end result and never describes a creature appearing,
+ * splitting, shrinking or leaving.
  */
 export function outcomePrompt(a, r, place, action, types, beat = "") {
-  // Where each person ends up, whether or not the state manager has applied it yet.
-  const aAfter = action === N ? FULL : types.includes("MONSTER_REMOVED") ? "NONE" : types.includes("MONSTER_SHRUNK") ? SMALL : a.monsterState;
-  const rAfter = action === N ? FULL : r.monsterState;
-  const A = cap(look(a, aAfter));
-  const R = look(r, rAfter);
-  let body;
   if (action === N) {
-    body = `${A} ${beat || "snaps harshly, face hard"}, speaking to ${R}, whose face falls, hurt and trying not to show it`;
-  } else if (action === P && types.includes("MONSTER_REMOVED")) {
+    return `${place}. ${cap(look(r, FULL))} stands alone in the frame, face fallen, hurt and trying not to show it, just after being spoken to harshly. Nobody else is in the frame. Close medium shot, steady camera. ${STYLE}`;
+  }
+  // Where the one who answered kindly ends up, whether or not the state manager has applied it yet.
+  const aAfter = types.includes("MONSTER_REMOVED") ? "NONE" : types.includes("MONSTER_SHRUNK") ? SMALL : a.monsterState;
+  const A = cap(look(a, aAfter));
+  const R = r.appearanceDescription;
+  let body;
+  if (action === P && types.includes("MONSTER_REMOVED")) {
     body = `${A} ${beat || "smiles tiredly and speaks gently"}, speaking to ${R}, who relaxes and smiles back. Warm clean light fills the frame`;
   } else if (action === P) {
     body = `${A} ${beat || "breathes out, lets their shoulders drop and speaks calmly"}, speaking to ${R}, who brightens with visible relief`;
