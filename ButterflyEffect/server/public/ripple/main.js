@@ -14,7 +14,6 @@ import {
   CAST, EPISODE, scenarioFor, validChoices, captionFor, afterFor,
   soloPrompt, encounterPrompt, outcomePrompt, exitPrompt, eveningPrompt, localSideBeat, setCreatures,
 } from "./content.js";
-import { layoutGraph } from "./layout.js";
 import { LiveStream } from "./stream.js";
 
 const params = new URLSearchParams(location.search);
@@ -29,7 +28,6 @@ const SETTLE = FAST ? 0 : 9000;         // how long a new moment plays before th
 const MAX_CHARACTERS = 20;
 // Every live window is its own Reactor session, billed per second while it is open.
 const LIVE_SIDES = Number(params.get("live") ?? 8);
-const MAX_SIDES = 8;
 setCreatures(params.get("creatures") !== "off");
 // The day, one step per choice. The opening is 7:30 AM and dinner is 6:30 PM.
 const CLOCK = ["7:45 AM", "8:50 AM", "9:40 AM", "10:30 AM", "11:30 AM", "12:40 PM", "1:45 PM", "3:00 PM", "4:15 PM", "5:30 PM"];
@@ -154,7 +152,7 @@ class Panel {
 
   label(name, detail, live = false) {
     this.plate.draw([
-      { text: name + (live ? "  · live" : ""), size: 52, bold: true },
+      { text: name + (live ? "  · live" : ""), size: this.featured ? 60 : 52, bold: true, color: this.featured ? "#d9bcff" : "#e8e6e3" },
       { text: detail, size: 38, color: "#b9b6ae" },
     ]);
   }
@@ -174,18 +172,23 @@ class Panel {
   }
   highlight(on) { this.border.material.color.set(on ? 0x7a45c8 : 0x2a2a30); }
 
+  /** Marks a main character's window: a thicker, bright frame. */
+  feature() {
+    this.featured = true;
+    this.border.scale.set(1.02, 1.035, 1);
+    this.border.material.color.set(0xd9bcff);
+  }
+
   /** Starts the window where its character came from and lets it glide out to its place. */
-  startFrom(from = new THREE.Vector3(0, 0, 0.12)) {
+  glideTo(position, rotationY, from = new THREE.Vector3(0, 0, 0.12), scale = 1) {
+    this.home = { position, rotationY, scale };
     this.group.position.copy(from);
     this.group.scale.setScalar(0.35);
   }
 
-  /** Where the layout wants this window; it eases there over the next second. */
-  glideTo(position, rotationY, scale = 1) { this.home = { position, rotationY, scale }; }
-
   tick(time) {
     if (this.home) {
-      const ease = FAST ? 1 : 0.07; // test runs jump straight to the layout
+      const ease = FAST ? 1 : 0.07; // test runs jump straight into place
       this.group.position.lerp(this.home.position, ease);
       this.group.rotation.y = THREE.MathUtils.lerp(this.group.rotation.y, this.home.rotationY, ease);
       this.group.scale.setScalar(THREE.MathUtils.lerp(this.group.scale.x, this.home.scale, ease));
@@ -210,11 +213,10 @@ const caption = new TextPlate(1.6, 0.3);
 caption.mesh.position.y = -0.85; // -0.70 to -1.00, with the choices below it
 stage.add(hud.mesh, caption.mesh);
 
-// Side windows are placed by layoutGraph(): two wings of columns on an arc around the viewer.
-const WING_ANGLES = [40, 64, 88]; // degrees from straight ahead, one per column
-const ROW_SPACING = 0.62;
-const SIDE_WIDTH = 0.78;
-const sidePanels = new Map(); // characterId -> { panel, detail, stream, connected, live, place }
+// Side windows sit on an arc around the viewer: [angle in degrees, height].
+const SLOTS = [[-44, 0.3], [44, 0.3], [-44, -0.38], [44, -0.38], [-70, 0.3], [70, 0.3], [-70, -0.38], [70, -0.38]];
+const freeSlots = SLOTS.map((_, i) => i);
+const sidePanels = new Map(); // characterId -> { panel, slot, detail, stream, connected, live }
 
 // ---------------------------------------------------------------- choices
 
@@ -372,13 +374,21 @@ function refresh() {
     // During the day a side window exists only while its character carries a Monster.
     // In the evening everyone we met, outside the family, gets a window.
     const isSide = evening ? !isFamily(c) : c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE && !heldBack.has(c.characterId);
-    if (isSide && !sidePanels.has(c.characterId) && sidePanels.size < MAX_SIDES) {
-      const panel = new Panel(SIDE_WIDTH);
+    if (isSide && !sidePanels.has(c.characterId) && freeSlots.length) {
+      const slot = freeSlots.shift();
+      const panel = new Panel(0.78);
+      const [degrees, y] = SLOTS[slot];
+      const angle = THREE.MathUtils.degToRad(degrees);
+      // The viewer stands at (0, 0, VIEW_DISTANCE) in stage space.
       // The window branches out from whoever gave this person their Monster (or from the main window).
       const source = links.findLast((link) => link.to === c.characterId);
-      panel.startFrom(source && sidePanels.get(source.from)?.panel.group.position.clone() || undefined);
+      const origin = source && sidePanels.get(source.from)?.panel.group.position.clone();
+      // Mom, Dad and Mia are the main characters: their windows are bigger and brightly framed.
+      const lead = isFamily(c);
+      if (lead) panel.feature();
+      panel.glideTo(new THREE.Vector3(Math.sin(angle) * VIEW_DISTANCE, y, VIEW_DISTANCE - Math.cos(angle) * VIEW_DISTANCE), -angle, origin || undefined, lead ? 1.15 : 1);
       stage.add(panel.group);
-      const entry = { panel, detail: "", stream: null, connected: Promise.resolve(false), live: false, place: null };
+      const entry = { panel, slot, detail: "", stream: null, connected: Promise.resolve(false), live: false };
       if ([...sidePanels.values()].filter((e) => e.stream).length < LIVE_SIDES) {
         entry.stream = new LiveStream(c.name, { mock: MOCK });
         entry.connected = entry.stream.connect().then(() => true, (error) => {
@@ -424,7 +434,6 @@ function refresh() {
     }
   }
   drawHud();
-  arrangeWindows();
   // Now that every window is in place, let any newly spawned Monster split off and travel to its new host.
   for (const link of links) if (!link.copied) { link.copied = true; flyCopy(link); }
 }
@@ -441,68 +450,35 @@ world.on((event) => {
 
 // ---------------------------------------------------------------- the ripple graph
 
-// Every window is a node. A straight line runs from whoever was harsh to the person who caught a
-// Monster from them, edge to edge, so it never crosses a video.
+// Every window is a node. A straight line with an arrow runs from whoever was harsh to the person
+// who caught a Monster from them. Lines are background: they are painted first and ignore depth,
+// so every window, label and Monster marker is drawn in front of them.
 const links = [];
 const LINK_GROW = FAST ? 200 : 1400; // how long a new line takes to draw itself outward
-const linkMaterial = new THREE.MeshBasicMaterial({ color: 0x9a6bea, transparent: true, opacity: 0.8 });
-const linkGeometry = new THREE.CylinderGeometry(0.007, 0.007, 1, 6);
-const tipGeometry = new THREE.SphereGeometry(0.022, 10, 8);
+const linkMaterial = new THREE.MeshBasicMaterial({ color: 0x8a5fe0, depthTest: false, depthWrite: false });
+const linkGeometry = new THREE.CylinderGeometry(0.02, 0.02, 1, 6);
+const arrowGeometry = new THREE.ConeGeometry(0.1, 0.28, 12); // points along +Y, like the line
+// Lines are drawn on a backdrop this far from the viewer, straight behind each window. A line
+// between a left and a right window would otherwise cut through the space right in front of you.
+const BACKDROP = 6;
+const viewer = new THREE.Vector3(0, 0, VIEW_DISTANCE); // where the viewer stands, in stage space
+const BEHIND = -10; // render order: before every window
 const UP = new THREE.Vector3(0, 1, 0);
 const endA = new THREE.Vector3(), endB = new THREE.Vector3(), along = new THREE.Vector3();
 
-/** Characters shown in the main window. They are the hub of the graph. */
-function hubIds() {
-  if (phase === "dinner") return new Set(family.map((c) => c.characterId));
-  return new Set([world.mainId, otherId].filter(Boolean));
+/** The window a character is shown in right now: the main window, their side window, or none. */
+function windowOf(id) {
+  const onMain = phase === "dinner" ? family.some((c) => c.characterId === id) : id === world.mainId || id === otherId;
+  return onMain ? mainPanel : sidePanels.get(id)?.panel ?? null;
 }
 
-/** Runs the layout and tells each side window where to glide. */
-function arrangeWindows() {
-  const placement = layoutGraph([...sidePanels.keys()], links, hubIds());
-  for (const [id, entry] of sidePanels) {
-    const place = entry.place = placement.get(id);
-    // A wing that needs more than three rows shrinks its windows and spacing together.
-    const scale = Math.max(Math.min(1, 3 / place.rows), 0.5);
-    const angle = THREE.MathUtils.degToRad(place.side * WING_ANGLES[place.col - 1]);
-    const y = -0.08 - (place.row - (place.rows - 1) / 2) * ROW_SPACING * scale;
-    // The viewer stands at (0, 0, VIEW_DISTANCE) in stage space.
-    entry.panel.glideTo(new THREE.Vector3(Math.sin(angle) * VIEW_DISTANCE, y, VIEW_DISTANCE - Math.cos(angle) * VIEW_DISTANCE), -angle, scale);
-  }
-}
-
-/** A point on a window's edge, in stage space. dx and dy are -1, 0 or 1 (left/right, bottom/top). */
-function edgeOf(panel, dx, dy, target) {
-  const height = (panel.width * 9) / 16;
-  target.set(dx * (panel.width / 2 + 0.025), dy > 0 ? height / 2 + 0.025 : dy < 0 ? -height / 2 - panel.width * 0.2 - 0.04 : 0, 0);
-  return stage.worldToLocal(panel.group.localToWorld(target));
-}
-
-/** The two ends of a link (from -> to), or false if either person has no window right now. */
+/** The two ends of a link (from -> to): the centres of the two windows, or false if there is nothing to draw. */
 function linkEnds(link, a, b) {
-  const hub = hubIds();
-  const from = hub.has(link.from) ? null : sidePanels.get(link.from);
-  const to = hub.has(link.to) ? null : sidePanels.get(link.to);
-  const fromHub = hub.has(link.from), toHub = hub.has(link.to);
-  if ((fromHub && toHub) || (!fromHub && !from?.place) || (!toHub && !to?.place)) return false;
-  if (fromHub || toHub) {
-    // One end is the main window: leave from its left or right edge toward that wing.
-    const side = (fromHub ? to : from).place.side;
-    edgeOf(mainPanel, side, 0, fromHub ? a : b);
-    edgeOf((fromHub ? to : from).panel, -side, 0, fromHub ? b : a);
-    return true;
-  }
-  const p = from.place, q = to.place;
-  if (p.side === q.side && p.col === q.col) {
-    // Stacked in the same column: bottom of the upper window to the top of the lower one.
-    const fromIsUpper = p.row < q.row;
-    edgeOf(from.panel, 0, fromIsUpper ? -1 : 1, a);
-    edgeOf(to.panel, 0, fromIsUpper ? 1 : -1, b);
-  } else {
-    // Neighbouring columns: outer edge of the inner window to the inner edge of the outer one.
-    const fromIsInner = p.col < q.col;
-    edgeOf(from.panel, fromIsInner ? p.side : -p.side, 0, a);
-    edgeOf(to.panel, fromIsInner ? -q.side : q.side, 0, b);
+  const from = windowOf(link.from), to = windowOf(link.to);
+  if (!from || !to || from === to) return false;
+  for (const [panel, end] of [[from, a], [to, b]]) {
+    stage.worldToLocal(panel.group.getWorldPosition(end));
+    end.sub(viewer).setLength(BACKDROP).add(viewer); // pushed out along the line of sight
   }
   return true;
 }
@@ -511,11 +487,12 @@ function tickLinks(now) {
   for (const link of links) {
     if (!link.mesh) {
       link.mesh = new THREE.Mesh(linkGeometry, linkMaterial);
-      link.tip = new THREE.Mesh(tipGeometry, linkMaterial); // marks the end that received the Monster
-      stage.add(link.mesh, link.tip);
+      link.arrow = new THREE.Mesh(arrowGeometry, linkMaterial); // points from whoever was harsh to whoever was hurt
+      link.mesh.renderOrder = link.arrow.renderOrder = BEHIND;
+      stage.add(link.mesh, link.arrow);
     }
     const show = linkEnds(link, endA, endB);
-    link.mesh.visible = link.tip.visible = show;
+    link.mesh.visible = link.arrow.visible = show;
     if (!show) continue;
     const grown = Math.min((now - link.born) / LINK_GROW, 1);
     along.subVectors(endB, endA);
@@ -523,8 +500,10 @@ function tickLinks(now) {
     link.mesh.quaternion.setFromUnitVectors(UP, along.normalize());
     link.mesh.scale.set(1, Math.max(length * grown, 0.001), 1);
     link.mesh.position.copy(endA).addScaledVector(along, (length * grown) / 2);
-    link.tip.position.copy(endB);
-    link.tip.visible = grown >= 1;
+    // The arrow sits halfway along, in the open space between the two windows.
+    link.arrow.quaternion.copy(link.mesh.quaternion);
+    link.arrow.position.copy(endA).addScaledVector(along, length * 0.5);
+    link.arrow.visible = grown >= 0.55;
   }
 }
 
@@ -542,7 +521,8 @@ function tickCopies(now) {
     const { link, marker, born } = copies[i];
     const t = (now - born) / flight;
     if (t >= 1 || !linkEnds(link, endA, endB)) { marker.removeFromParent(); copies.splice(i, 1); continue; }
-    marker.position.lerpVectors(endA, endB, t * t * (3 - 2 * t));
+    // The copy flies in front of the windows, at their distance, above the line it follows.
+    marker.position.lerpVectors(endA, endB, t * t * (3 - 2 * t)).sub(viewer).setLength(VIEW_DISTANCE - 0.35).add(viewer);
     marker.scale.setScalar(0.05 + 0.07 * t);
   }
 }
@@ -556,6 +536,7 @@ function closeSide(id) {
   sidePanels.delete(id);
   console.log("[ripple] side window closed:", id, "windows left:", sidePanels.size);
   entry.panel.dispose();
+  freeSlots.push(entry.slot);
   entry.connected.then(() => entry.stream?.close());
 }
 

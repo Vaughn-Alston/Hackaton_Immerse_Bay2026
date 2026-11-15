@@ -117,7 +117,6 @@ test("people head to their own places first: Dad to the clinic, Mia to school", 
 });
 
 import { outcomePrompt, encounterPrompt, exitPrompt, anchor, setCreatures } from "./public/ripple/content.js";
-import { layoutGraph, COLUMNS } from "./public/ripple/layout.js";
 
 test("prompts give each carrier exactly one creature, named by owner, and describe end states only", () => {
   const world = new World();
@@ -146,37 +145,4 @@ test("prompts give each carrier exactly one creature, named by owner, and descri
   setCreatures(false);
   try { assert.ok(!/creature/i.test(outcomePrompt(mom, dad, "A kitchen", "NEGATIVE", ["MONSTER_SPAWNED"]) + EPISODE.kitchenPrompt(mom, dad))); }
   finally { setCreatures(true); }
-});
-
-test("the graph layout is a tidy mind-map: unique cells, columns step outward, no crossing lines", () => {
-  // hub -> a -> b -> c -> d (a chain that runs past the last column), a -> e, hub -> f -> g, f -> h, and a loose node z
-  const links = [["hub", "a"], ["a", "b"], ["b", "c"], ["c", "d"], ["a", "e"], ["hub", "f"], ["f", "g"], ["f", "h"]].map(([from, to]) => ({ from, to }));
-  const nodes = ["a", "b", "c", "d", "e", "f", "g", "h", "z"];
-  const placement = layoutGraph(nodes, links, new Set(["hub"]));
-  assert.equal(placement.size, nodes.length);
-
-  const cells = new Set();
-  for (const [id, p] of placement) {
-    const cell = `${p.side}:${p.col}:${p.row}`;
-    assert.ok(!cells.has(cell), `two windows share a cell at ${cell}`);
-    cells.add(cell);
-    assert.ok(p.col >= 1 && p.col <= COLUMNS);
-    if (p.parent !== null) {
-      const parent = placement.get(p.parent);
-      assert.equal(parent.side, p.side, `${id} is on the same wing as its parent`);
-      assert.equal(p.col, Math.min(parent.col + 1, COLUMNS), `${id} is one column further out, or stacked in the last`);
-    } else assert.equal(p.col, 1);
-  }
-  assert.equal(placement.get("z").loose, true);
-  assert.notEqual(placement.get("a").side, placement.get("f").side); // the two big branches balance across the wings
-
-  // Segments in (signed column, row) space must not properly cross.
-  const point = (id) => (id === null ? null : [placement.get(id).side * placement.get(id).col, placement.get(id).row]);
-  const segments = [...placement].filter(([, p]) => p.parent !== null).map(([id, p]) => [point(p.parent), point(id)]);
-  const turn = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
-  for (let i = 0; i < segments.length; i++) for (let j = i + 1; j < segments.length; j++) {
-    const [a, b] = segments[i], [c, d] = segments[j];
-    const crosses = turn(a, b, c) * turn(a, b, d) < 0 && turn(c, d, a) * turn(c, d, b) < 0;
-    assert.ok(!crosses, `lines cross: ${JSON.stringify(segments[i])} and ${JSON.stringify(segments[j])}`);
-  }
 });
