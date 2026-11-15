@@ -98,16 +98,16 @@ class TextPlate {
     const layout = (scale) => {
       const rows = [];
       let y = 18 * scale;
-      for (const { text, size = 36, color = "#e8e6e3", bold = false } of shown) {
+      for (const { text, size = 36, color = "#e8e6e3", bold = false, align = "left" } of shown) {
         const px = size * scale;
         const font = `${bold ? "600 " : ""}${px}px system-ui, sans-serif`;
         g.font = font;
         let row = "";
         for (const word of String(text).split(" ")) {
-          if (row && g.measureText(row + word).width > width - 56) { y += px * 1.25; rows.push({ row, y, font, color }); row = ""; }
+          if (row && g.measureText(row + word).width > width - 56) { y += px * 1.25; rows.push({ row, y, font, color, align }); row = ""; }
           row += word + " ";
         }
-        y += px * 1.25; rows.push({ row, y, font, color });
+        y += px * 1.25; rows.push({ row, y, font, color, align });
         y += px * 0.3;
       }
       return { rows, bottom: y };
@@ -117,7 +117,10 @@ class TextPlate {
 
     g.clearRect(0, 0, width, height);
     if (background) { g.fillStyle = background; g.beginPath(); g.roundRect(0, 0, width, height, 22); g.fill(); }
-    for (const { row, y, font, color } of fitted.rows) { g.font = font; g.fillStyle = color; g.fillText(row, 28, y); }
+    for (const { row, y, font, color, align } of fitted.rows) {
+      g.font = font; g.fillStyle = color; g.textAlign = align;
+      g.fillText(row.trim(), align === "center" ? width / 2 : 28, y);
+    }
     this.texture.needsUpdate = true;
   }
 }
@@ -398,8 +401,8 @@ function setCaption(text, detail = "") {
 
 function drawHud() {
   hud.draw([
-    { text: `Monsters in the world: ${world.monsterCount}`, size: 50, bold: true, color: world.monsterCount ? "#b48cff" : "#8fd694" },
-    { text: hudStatus, size: 36, color: "#b9b6ae" }, // the time of day is not shown; only the director uses it
+    { text: `Monsters in the world: ${world.monsterCount}`, size: 50, bold: true, color: world.monsterCount ? "#b48cff" : "#8fd694", align: "center" },
+    { text: hudStatus, size: 36, color: "#b9b6ae", align: "center" }, // the time of day is not shown; only the director uses it
   ]);
   $("status").textContent = `${world.monsterCount} monster(s). ${hudStatus}`;
 }
@@ -759,7 +762,7 @@ async function sceneKitchen() {
   mainPanel.setTexture(main.texture);
   engagedId = otherId = dad.characterId;
   refresh();
-  setStatus("Watch.");
+  setStatus("");
   setCaption("The dishwasher is full of last night's dishes. Nobody started it.", "Mom is already tired. Something small and dark is sitting on her shoulder.");
   await main.show(EPISODE.kitchenPrompt(mom, dad), { cut: true });
   await sleep(HOLD);
@@ -853,7 +856,7 @@ async function sceneDinner() {
   phase = "dinner";
   clock = "6:30 PM";
   engagedId = otherId = null;
-  setStatus("Watch.");
+  setStatus("");
   setCaption("The same kitchen. A different evening.", "Dinner is ready. For a moment everything looks ordinary again.");
   await main.show(EPISODE.dinnerPrompt(mom, dad, child), { cut: true });
   refresh(); // the family leaves the side windows; everyone else we met gets an evening window
