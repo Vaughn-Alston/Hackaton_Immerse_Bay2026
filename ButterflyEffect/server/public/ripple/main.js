@@ -735,6 +735,8 @@ async function sceneKitchen() {
   await sleep(HOLD);
 
   setCaption("A new monster grows on Dad's shoulder. Mom keeps hers. Now there are two.", "Dad turns away without another word.");
+  otherId = null; // only Dad is in the picture now, so only his Monster marker shows on the main window
+  refresh();
   await main.show(EPISODE.dadLeavesPrompt(mom, dad));
   await sleep(HOLD * 0.7);
   setCaption("The story follows Dad.", "Mom's morning goes on without us.");
@@ -795,6 +797,8 @@ async function theDay(firstPlan) {
     if (leaves) {
       // Watch them go before their own Living Window appears.
       setCaption(`${actor.name} walks away.`, `${actor.name}'s day goes on without us.`);
+      otherId = null; // only the person left behind is in the picture now
+      refresh();
       await main.show(exitPrompt(actor, recipient, scenario.place));
       await sleep(EXIT);
       heldBack.delete(actor.characterId);

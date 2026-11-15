@@ -42,9 +42,11 @@ export function anchor(character) {
 // that person's own description, and never anywhere else: no separate creature sentences, no
 // counts and no "nobody has more than one". Every extra mention is another creature the model may
 // draw. The wording also avoids naming any animal, which is what produced extra cats.
+// The clause also never contains a number other than "a single": "two glowing eyes" was enough
+// to make the model draw two creatures, one on each shoulder.
 const CREATURE = {
-  [FULL]: "with one small round dark-purple fuzzy creature with two glowing violet eyes perched on the left shoulder",
-  [SMALL]: "with one tiny dim dark-purple fuzzy creature, no bigger than a walnut, perched on the left shoulder",
+  [FULL]: "with a single small round dark-purple fuzzy creature with glowing violet eyes sitting on the left shoulder",
+  [SMALL]: "with a single tiny dim dark-purple fuzzy creature, no bigger than a walnut, sitting on the left shoulder",
 };
 
 /** The creature clause for this person, or an empty string if they have none (or creatures are off). */
@@ -71,13 +73,13 @@ export const afterFor = (picked, a, r) => fill(picked.after ?? "", a, r);
 export const EPISODE = {
   mom: person(["Mom", "a woman in her late thirties with shoulder-length auburn hair, a cream knitted cardigan and grey lounge trousers", "organised and exhausted, feels she carries the whole house", false, { role: "mom", routine: ["queue", "cafe"] }]),
   dad: person(["Dad", "a man in his early forties with short dark hair and glasses, a light blue shirt and a navy jacket with a doctor's ID badge", "gentle, avoids conflict, swallows things instead of saying them", false, { role: "dad", routine: ["clinic"] }]),
-  child: person(["Mia", "a seven-year-old girl with two brown braids, a yellow cardigan and a red school backpack", "bright and sensitive, takes things to heart", true, { role: "child", routine: ["classroom", "playground"] }]),
+  child: person(["Mia", "a seven-year-old girl with brown braided pigtails, a yellow cardigan and a red school backpack", "bright and sensitive, takes things to heart", true, { role: "child", routine: ["classroom", "playground"] }]),
 
   kitchenPlace: `${KITCHEN}, soft cool morning sunlight`,
 
   /** Scene 1, before the question: the full dishwasher that nobody started. */
   kitchenPrompt(mom, dad) {
-    return `${this.kitchenPlace}. ${cap(look(mom))} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated. Behind her, ${look(dad)} is getting ready to leave for work, checking his bag. Medium-wide two-shot. ${STYLE}`;
+    return `${this.kitchenPlace}. ${cap(look(mom))} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated. Behind her, ${look(dad)} is getting ready to leave for work, checking his bag. Medium-wide shot of both people. ${STYLE}`;
   },
 
   /** Scene 1, the scene breaking up: Dad walks out alone, and the camera goes with him. */
@@ -261,7 +263,7 @@ export function exitPrompt(leaver, stayer, place) {
  */
 export function encounterPrompt(a, r, scenario) {
   const other = scenario.innocent ? "looks up at them hopefully, waiting for an answer" : "looks back, unsure what is coming";
-  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(look(a))} stops, jaw tightening, a long tired breath, about to answer. The other person, ${look(r)}, ${other}. Medium two-shot, steady camera. ${STYLE}`;
+  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(look(a))} stops, jaw tightening, a long tired breath, about to answer. The other person, ${look(r)}, ${other}. Medium shot of both people, steady camera. ${STYLE}`;
 }
 
 /**
@@ -286,7 +288,7 @@ export function outcomePrompt(a, r, place, action, types, beat = "") {
   } else {
     body = `${A} says very little and looks away from ${R}, who shrugs and moves on`;
   }
-  return `${place}. ${body}. Medium two-shot, steady camera. ${STYLE}`;
+  return `${place}. ${body}. Medium shot of both people, steady camera. ${STYLE}`;
 }
 
 /** A side-story beat without the director: a fitting situation and one of its three written answers. */

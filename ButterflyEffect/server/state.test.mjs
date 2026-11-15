@@ -139,6 +139,7 @@ test("a prompt mentions a creature exactly once per carrier, and never as an ani
   const all = [EPISODE.kitchenPrompt(mom, dad), once, encounterPrompt(dad, mia, EPISODE.hallway), EPISODE.dinnerPrompt(mom, dad, mia),
     outcomePrompt(mom, dad, "A kitchen", "NEGATIVE", ["MONSTER_SPAWNED"])];
   for (const prompt of all) {
+    assert.ok(!/\btwo\b/i.test(prompt.replace("two brown braids", "")), "no stray number near a creature: " + prompt);
     assert.ok(!/\bcat\b|kitten|mouse|splits|copy|drifts|exactly|more than one|in total|,,/i.test(prompt), prompt);
   }
   setCreatures(false);
