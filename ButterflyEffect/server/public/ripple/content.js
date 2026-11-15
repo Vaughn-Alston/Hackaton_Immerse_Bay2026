@@ -38,28 +38,25 @@ export function anchor(character) {
   return item ? `the ${subject} with the ${item}` : `the ${subject}`;
 }
 
-/** One sentence saying this person has exactly one creature, or an empty string if they have none. */
+// What the video model is told about a Monster. It is mentioned exactly once per carrier, inside
+// that person's own description, and never anywhere else: no separate creature sentences, no
+// counts and no "nobody has more than one". Every extra mention is another creature the model may
+// draw. The wording also avoids naming any animal, which is what produced extra cats.
+const CREATURE = {
+  [FULL]: "with one small round dark-purple fuzzy creature with two glowing violet eyes perched on the left shoulder",
+  [SMALL]: "with one tiny dim dark-purple fuzzy creature, no bigger than a walnut, perched on the left shoulder",
+};
+
+/** The creature clause for this person, or an empty string if they have none (or creatures are off). */
 export function monsterOn(character, state = character.monsterState) {
-  if (!creaturesOn) return "";
-  const who = anchor(character);
-  if (state === FULL) return `${who.charAt(0).toUpperCase() + who.slice(1)} has exactly one small dark-purple creature the size of a cat sitting on the left shoulder beside the neck, with a round shadowy body and two faintly glowing violet eyes`;
-  if (state === SMALL) return `${who.charAt(0).toUpperCase() + who.slice(1)} has exactly one tiny dark-purple creature no bigger than a mouse sitting on the left shoulder, its two violet eyes dim`;
-  return "";
+  return creaturesOn ? CREATURE[state] ?? "" : "";
 }
 
-/** The same, ready to drop into a prompt (empty when there is no Monster). */
-const creature = (character, state) => { const text = monsterOn(character, state); return text ? ` ${text}.` : ""; };
-
-const NUMBER = ["no", "one", "two", "three"];
-/** Tells the video model how many creatures the frame holds, so it does not add or drop one. */
-export function creatureCount(count) {
-  if (!creaturesOn) return "";
-  if (count <= 0) return " There are no creatures of any kind anywhere in the scene, and nothing on anyone's shoulders.";
-  if (count === 1) return " That is the only creature in the whole scene. Nobody else has anything on their shoulders, and nobody has more than one.";
-  return ` That makes ${NUMBER[Math.min(count, 3)]} creatures in total, one on each of those people. Nobody has more than one.`;
+/** A person as the prompt describes them: their appearance, plus their one creature if they carry one. */
+export function look(character, state = character.monsterState) {
+  const clause = monsterOn(character, state);
+  return clause ? `${character.appearanceDescription}, ${clause}` : character.appearanceDescription;
 }
-const has = (state) => state === FULL || state === SMALL;
-const carrying = (...people) => people.filter((c) => has(c.monsterState)).length;
 
 const cap = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const fill = (text, a, r) =>
@@ -80,17 +77,17 @@ export const EPISODE = {
 
   /** Scene 1, before the question: the full dishwasher that nobody started. */
   kitchenPrompt(mom, dad) {
-    return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated. Behind her, ${dad.appearanceDescription} is getting ready to leave for work, checking his bag.${creature(mom)}${creature(dad)}${creatureCount(carrying(mom, dad))} Medium-wide two-shot. ${STYLE}`;
+    return `${this.kitchenPlace}. ${cap(look(mom))} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated. Behind her, ${look(dad)} is getting ready to leave for work, checking his bag. Medium-wide two-shot. ${STYLE}`;
   },
 
   /** Scene 1, the scene breaking up: Dad walks out alone, and the camera goes with him. */
   dadLeavesPrompt(mom, dad) {
-    return `The doorway between a family kitchen and a hallway, soft cool morning sunlight. ${cap(dad.appearanceDescription)} walks alone out of the kitchen toward the hallway carrying his bag, hurt and trying not to show it. Nobody else is in the frame.${creature(dad)}${creatureCount(carrying(dad))} The camera follows him from the front. ${STYLE}`;
+    return `The doorway between a family kitchen and a hallway, soft cool morning sunlight. ${cap(look(dad))} walks alone out of the kitchen toward the hallway carrying his bag, hurt and trying not to show it. Nobody else is in the frame. The camera follows him from the front. ${STYLE}`;
   },
 
   /** Scene 1, after: Mom alone, for her side window. */
   momAlonePrompt(mom) {
-    return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} stands alone at the counter, loading the last dishes with short hard movements, jaw tight. Nobody else is in the frame.${creature(mom)}${creatureCount(carrying(mom))} Medium shot. ${STYLE}`;
+    return `${this.kitchenPlace}. ${cap(look(mom))} stands alone at the counter, loading the last dishes with short hard movements, jaw tight. Nobody else is in the frame. Medium shot. ${STYLE}`;
   },
 
   // Scene 2: the first choice. An innocent thing at the worst moment.
@@ -109,14 +106,14 @@ export const EPISODE = {
 
   /** Scene 4: the same kitchen that evening, everyone carrying whatever the day left them with. */
   dinnerPrompt(mom, dad, child) {
-    return `${KITCHEN}, now in warm intimate evening lamplight, the dishwasher humming quietly with a small green light on. Seated around the round wooden table eating dinner are three people. ${cap(mom.appearanceDescription)}. Next to her, ${dad.appearanceDescription}. Between them, ${child.appearanceDescription}.${creature(mom)}${creature(dad)}${creature(child)}${creatureCount(carrying(mom, dad, child))} The child reaches across the table for a glass of water and a parent passes it. Plates of food, quiet ordinary conversation. Wide shot from across the table. ${STYLE}`;
+    return `${KITCHEN}, now in warm intimate evening lamplight, the dishwasher humming quietly with a small green light on. Seated around the round wooden table eating dinner are three people. ${cap(look(mom))}. Next to her, ${look(dad)}. Between them, ${look(child)}. The child reaches across the table for a glass of water and a parent passes it. Plates of food, quiet ordinary conversation. Wide shot from across the table. ${STYLE}`;
   },
 };
 
 /** Someone at home that evening, for the closing windows. */
 export function eveningPrompt(c) {
   const company = c.kid ? "talking with a parent about the school day" : "sharing a quiet meal with someone they love";
-  return `A modest home dining table in warm evening lamplight. ${cap(c.appearanceDescription)} sits at dinner, ${company}.${creature(c)}${creatureCount(carrying(c))} Medium shot, calm and ordinary. ${STYLE}`;
+  return `A modest home dining table in warm evening lamplight. ${cap(look(c))} sits at dinner, ${company}. Medium shot, calm and ordinary. ${STYLE}`;
 }
 
 // ---------------------------------------------------------------- everyone else
@@ -250,12 +247,12 @@ export function validChoices(choices) {
 
 /** A character on their own, between encounters. */
 export function soloPrompt(c, mood = "walks alone, jaw tight, shoulders tense, lost in a bad mood") {
-  return `A city street in daylight. ${cap(c.appearanceDescription)} ${mood}. Nobody else is in the frame.${creature(c)}${creatureCount(carrying(c))} Slow tracking shot from the front and slightly to the side, shoulders and face clearly visible. ${STYLE}`;
+  return `A city street in daylight. ${cap(look(c))} ${mood}. Nobody else is in the frame. Slow tracking shot from the front and slightly to the side, shoulders and face clearly visible. ${STYLE}`;
 }
 
 /** The one who was harsh has walked out; the camera stays with the person left behind, alone in the frame. */
 export function exitPrompt(leaver, stayer, place) {
-  return `${place}. ${cap(stayer.appearanceDescription)} stands alone, watching someone walk away out of frame, hurt and trying not to show it. Nobody else is in the frame.${creature(stayer)}${creatureCount(carrying(stayer))} Medium shot, steady camera. ${STYLE}`;
+  return `${place}. ${cap(look(stayer))} stands alone, watching someone walk away out of frame, hurt and trying not to show it. Nobody else is in the frame. Medium shot, steady camera. ${STYLE}`;
 }
 
 /**
@@ -263,9 +260,8 @@ export function exitPrompt(leaver, stayer, place) {
  * happened, the character tightens, and their creature leans in toward their ear.
  */
 export function encounterPrompt(a, r, scenario) {
-  const pressure = monsterOn(a) ? `${creature(a)} It leans in close to that person's ear as if whispering.` : "";
   const other = scenario.innocent ? "looks up at them hopefully, waiting for an answer" : "looks back, unsure what is coming";
-  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(a.appearanceDescription)} stops, jaw tightening, a long tired breath, about to answer. The other person, ${r.appearanceDescription}, ${other}.${pressure}${creature(r)}${creatureCount(carrying(a, r))} Medium two-shot, steady camera. ${STYLE}`;
+  return `${scenario.place}. ${cap(fill(scenario.visual, a, r))}. ${cap(look(a))} stops, jaw tightening, a long tired breath, about to answer. The other person, ${look(r)}, ${other}. Medium two-shot, steady camera. ${STYLE}`;
 }
 
 /**
@@ -275,11 +271,11 @@ export function encounterPrompt(a, r, scenario) {
  * whatever a prompt names, wherever the sentence starts.
  */
 export function outcomePrompt(a, r, place, action, types, beat = "") {
-  const A = cap(a.appearanceDescription);
-  const R = r.appearanceDescription;
   // Where each person ends up, whether or not the state manager has applied it yet.
   const aAfter = action === N ? FULL : types.includes("MONSTER_REMOVED") ? "NONE" : types.includes("MONSTER_SHRUNK") ? SMALL : a.monsterState;
   const rAfter = action === N ? FULL : r.monsterState;
+  const A = cap(look(a, aAfter));
+  const R = look(r, rAfter);
   let body;
   if (action === N) {
     body = `${A} ${beat || "snaps harshly, face hard"}, speaking to ${R}, whose face falls, hurt and trying not to show it`;
@@ -290,8 +286,7 @@ export function outcomePrompt(a, r, place, action, types, beat = "") {
   } else {
     body = `${A} says very little and looks away from ${R}, who shrugs and moves on`;
   }
-  const count = [aAfter, rAfter].filter(has).length;
-  return `${place}. ${body}.${creature(a, aAfter)}${creature(r, rAfter)}${creatureCount(count)} Medium two-shot, steady camera. ${STYLE}`;
+  return `${place}. ${body}. Medium two-shot, steady camera. ${STYLE}`;
 }
 
 /** A side-story beat without the director: a fitting situation and one of its three written answers. */
