@@ -115,3 +115,19 @@ test("people head to their own places first: Dad to the clinic, Mia to school", 
   for (let i = 0; i < 20; i++) assert.notEqual(localSideBeat(dad).scenario.id, "clinic"); // the clinic is only on Dad's route
   for (let i = 0; i < 20; i++) assert.ok(KID_SCENARIOS.includes(scenarioFor(mia)));
 });
+
+import { outcomePrompt, encounterPrompt } from "./public/ripple/content.js";
+
+test("prompts name exactly one creature per carrier and say nothing about people without one", () => {
+  const world = new World();
+  const mom = world.add(EPISODE.mom), dad = world.add(EPISODE.dad);
+  world.seed(mom.characterId);
+  const opening = EPISODE.kitchenPrompt(mom, dad);
+  assert.equal(opening.match(/Perched on/g).length, 1);
+  assert.ok(opening.includes("exactly one such creature"));
+  assert.ok(!/bare|nothing is perched/.test(opening));
+  const harsh = outcomePrompt(mom, dad, "A kitchen", "NEGATIVE", ["MONSTER_SPAWNED"]);
+  assert.ok(harsh.includes("splits in two") && harsh.includes("each of the two people carries exactly one creature"));
+  world.resolve(mom.characterId, dad.characterId, "NEGATIVE");
+  assert.ok(encounterPrompt(dad, world.add(EPISODE.child), EPISODE.hallway).includes("exactly one such creature"));
+});

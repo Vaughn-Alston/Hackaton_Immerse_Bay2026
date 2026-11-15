@@ -114,7 +114,7 @@ const panels = new Set();
 
 /** One Living Window: a 16:9 screen, a name plate under it, and Monsters along its top edge. */
 class Panel {
-  constructor(width, plateHeight = width * 0.2, platePixels = 768) {
+  constructor(width, plateHeight = width * 0.2, platePixels = 768, tagged = false) {
     this.width = width;
     const height = (width * 9) / 16;
     this.group = new THREE.Group();
@@ -131,6 +131,14 @@ class Panel {
       return monster;
     });
     this.group.add(this.border, this.screen, this.plate.mesh, ...this.monsters);
+    // On a window that shows more than one person, each marker carries its owner's name.
+    this.tags = tagged ? this.monsters.map((monster) => {
+      const tag = new TextPlate(width * 0.15, width * 0.042, 256);
+      tag.mesh.position.set(monster.position.x, monster.position.y - width * 0.085, 0.27);
+      tag.mesh.visible = false;
+      this.group.add(tag.mesh);
+      return tag;
+    }) : [];
     panels.add(this);
   }
 
@@ -147,16 +155,25 @@ class Panel {
     ]);
   }
 
-  /** Monster states for the left, right and centre positions. */
-  setMonster(left, right = NONE, centre = NONE) {
-    [left, right, centre].forEach((state, i) => { this.monsters[i].userData.target = MONSTER_SIZE[state] * this.width * 0.2; });
+  /** Who is at the left, right and centre positions. Each person with a Monster gets exactly one marker. */
+  setMonsters(left = null, right = null, centre = null) {
+    [left, right, centre].forEach((person, i) => {
+      const monster = this.monsters[i];
+      monster.userData.target = MONSTER_SIZE[person?.monsterState ?? NONE] * this.width * 0.2;
+      monster.userData.owner = person?.characterId ?? null;
+      const tag = this.tags[i];
+      if (tag && person && tag.name !== person.name) {
+        tag.name = person.name;
+        tag.draw([{ text: person.name, size: 34, bold: true }], "rgba(29,18,48,0.92)");
+      }
+    });
   }
   highlight(on) { this.border.material.color.set(on ? 0x7a45c8 : 0x2a2a30); }
 
-  /** Starts the window at the main window and lets it glide out to its place. */
-  glideTo(position, rotationY) {
+  /** Starts the window where its character came from and lets it glide out to its place. */
+  glideTo(position, rotationY, from = new THREE.Vector3(0, 0, 0.12)) {
     this.home = { position, rotationY };
-    this.group.position.set(0, 0, 0.12);
+    this.group.position.copy(from);
     this.group.scale.setScalar(0.35);
   }
 
@@ -171,12 +188,13 @@ class Panel {
       m.scale.setScalar(Math.max(m.userData.size, 0.0001) * (1 + 0.04 * Math.sin(time * 0.004)));
       m.visible = m.userData.size > 0.002;
     }
+    this.tags.forEach((tag, i) => { tag.mesh.visible = this.monsters[i].userData.size > this.width * 0.04; });
   }
 
   dispose() { panels.delete(this); this.group.removeFromParent(); }
 }
 
-const mainPanel = new Panel(1.6, 0.2, 1280); // name plate ends at y = -0.675
+const mainPanel = new Panel(1.6, 0.2, 1280, true); // name plate ends at y = -0.675
 stage.add(mainPanel.group);
 
 const hud = new TextPlate(1.6, 0.17);
@@ -352,7 +370,10 @@ function refresh() {
       const [degrees, y] = SLOTS[slot];
       const angle = THREE.MathUtils.degToRad(degrees);
       // The viewer stands at (0, 0, VIEW_DISTANCE) in stage space.
-      panel.glideTo(new THREE.Vector3(Math.sin(angle) * VIEW_DISTANCE, y, VIEW_DISTANCE - Math.cos(angle) * VIEW_DISTANCE), -angle);
+      // The window branches out from whoever gave this person their Monster (or from the main window).
+      const source = links.findLast((link) => link.to === c.characterId);
+      const origin = source && sidePanels.get(source.from)?.panel.group.position.clone();
+      panel.glideTo(new THREE.Vector3(Math.sin(angle) * VIEW_DISTANCE, y, VIEW_DISTANCE - Math.cos(angle) * VIEW_DISTANCE), -angle, origin || undefined);
       stage.add(panel.group);
       const entry = { panel, slot, detail: "", stream: null, connected: Promise.resolve(false), live: false };
       if ([...sidePanels.values()].filter((e) => e.stream).length < LIVE_SIDES) {
@@ -372,7 +393,7 @@ function refresh() {
       else if (!entry.closing) {
         // Monster gone: let the dissolve play, then the window leaves the network.
         entry.closing = true;
-        entry.panel.setMonster(NONE);
+        entry.panel.setMonsters(null);
         entry.panel.label(c.name, entry.detail, entry.live);
         setTimeout(() => { if (sidePanels.get(c.characterId) === entry && entry.closing) closeSide(c.characterId); refresh(); }, HOLD);
       }
@@ -382,30 +403,105 @@ function refresh() {
     const c = world.get(id);
     if (entry.closing && (evening || c.monsterState !== NONE)) entry.closing = false; // caught a new one, or evening came
     if (entry.closing) continue;
-    entry.panel.setMonster(c.monsterState);
+    entry.panel.setMonsters(c);
     entry.panel.label(c.name, entry.detail, entry.live); // just the name until an interaction has played
   }
 
   if (evening) {
     const [mom, dad, child] = family;
-    mainPanel.setMonster(mom.monsterState, dad.monsterState, child.monsterState);
+    mainPanel.setMonsters(mom, dad, child);
     mainPanel.label("Dinner", family.map((c) => `${c.name}: ${describe(c)}`).join("   ·   "));
   } else {
     const lead = world.main;
     const other = otherId && otherId !== world.mainId ? world.get(otherId) : null;
-    mainPanel.setMonster(lead ? lead.monsterState : NONE, other ? other.monsterState : NONE);
+    mainPanel.setMonsters(lead, other);
     if (lead) {
       mainPanel.label(lead.name, describe(lead) + (other ? `   ·   ${other.name}: ${describe(other)}` : ""));
       lead.activeWindowId = "window_main";
     }
   }
   drawHud();
+  // Now that every window is in place, let any newly spawned Monster split off and travel to its new host.
+  for (const link of links) if (!link.copied) { link.copied = true; flyCopy(link); }
 }
 
 world.on((event) => {
   if (event.type !== "WORLD_STATE_UPDATED") console.log("[ripple]", event.type, event.characterId ?? `${event.actorId}->${event.recipientId} ${event.action}`);
   else { console.log("[ripple] monsters:", event.monsterCount); refresh(); }
+  // The ripple graph: one link for every time someone gave someone else a Monster.
+  if (event.type === "MONSTER_SPAWNED" && event.from) {
+    links.push({ from: event.from, to: event.characterId, born: performance.now(), copied: false });
+    console.log("[ripple] link:", event.from, "->", event.characterId);
+  }
 });
+
+// ---------------------------------------------------------------- the ripple graph
+
+// Every window is a node; a line runs from the Monster of whoever was harsh to the Monster it spawned.
+const links = [];
+const LINK_STEPS = 28;
+const LINK_GROW = FAST ? 200 : 1400; // how long a new line takes to draw itself outward
+const linkMaterial = new THREE.MeshBasicMaterial({ color: 0x9a6bea, transparent: true, opacity: 0.75 });
+const anchorA = new THREE.Vector3(), anchorB = new THREE.Vector3(), anchorMid = new THREE.Vector3();
+
+/** Where a character's Monster marker is right now, in stage space, or null if they have no window. */
+function anchorOf(id, target) {
+  for (const panel of panels) {
+    const marker = panel.monsters.find((m) => m.userData.owner === id);
+    if (!marker || !panel.group.parent) continue;
+    stage.worldToLocal(marker.getWorldPosition(target));
+    return target;
+  }
+  return null;
+}
+
+/** A gentle arc between two markers, lifted up and toward the viewer so it clears the windows. */
+function linkCurve(a, b) {
+  anchorMid.addVectors(a, b).multiplyScalar(0.5);
+  const lift = Math.min(0.12 + a.distanceTo(b) * 0.12, 0.4);
+  anchorMid.y += lift;
+  anchorMid.z += lift;
+  return new THREE.QuadraticBezierCurve3(a.clone(), anchorMid.clone(), b.clone());
+}
+
+function tickLinks(now) {
+  for (const link of links) {
+    const a = anchorOf(link.from, anchorA), b = anchorOf(link.to, anchorB);
+    const show = Boolean(a && b) && a.distanceToSquared(b) > 0.0004;
+    if (link.mesh) link.mesh.visible = show;
+    if (!show) continue;
+    const grown = Math.min((now - link.born) / LINK_GROW, 1);
+    const key = `${a.x.toFixed(3)},${a.y.toFixed(3)},${a.z.toFixed(3)},${b.x.toFixed(3)},${b.y.toFixed(3)},${b.z.toFixed(3)}`;
+    if (link.key !== key) {
+      // Windows glide, so the tube is rebuilt whenever an end has moved.
+      link.key = key;
+      const geometry = new THREE.TubeGeometry(linkCurve(a, b), LINK_STEPS, 0.007, 5, false);
+      if (link.mesh) { link.mesh.geometry.dispose(); link.mesh.geometry = geometry; }
+      else { link.mesh = new THREE.Mesh(geometry, linkMaterial); stage.add(link.mesh); }
+    }
+    link.mesh.geometry.setDrawRange(0, Math.ceil(LINK_STEPS * grown) * 5 * 6);
+  }
+}
+
+// A Monster never moves from one person to another: it splits, and the copy travels.
+const copies = [];
+function flyCopy(link) {
+  const marker = makeMonster();
+  stage.add(marker);
+  copies.push({ link, marker, born: performance.now() });
+}
+
+function tickCopies(now) {
+  const flight = FAST ? 200 : 1600;
+  for (let i = copies.length - 1; i >= 0; i--) {
+    const { link, marker, born } = copies[i];
+    const t = (now - born) / flight;
+    const a = anchorOf(link.from, anchorA), b = anchorOf(link.to, anchorB);
+    if (t >= 1 || !a || !b) { marker.removeFromParent(); copies.splice(i, 1); continue; }
+    linkCurve(a, b).getPoint(t * t * (3 - 2 * t), marker.position);
+    marker.scale.setScalar(0.05 + 0.09 * t);
+  }
+}
 
 // ---------------------------------------------------------------- side stories
 
@@ -772,6 +868,8 @@ drawHud();
 mainPanel.label("The Ripple", MOCK ? "mock video" : "It was never really about the dishwasher.");
 renderer.setAnimationLoop((time) => {
   for (const panel of panels) panel.tick(time);
+  tickLinks(performance.now());
+  tickCopies(performance.now());
   // In the headset, light up the choice a controller is pointing at.
   if (renderer.xr.isPresenting) {
     for (const { ray } of controllers) ray.visible = Boolean(pendingChoice);
