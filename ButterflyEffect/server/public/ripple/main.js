@@ -457,7 +457,11 @@ const links = [];
 const LINK_GROW = FAST ? 200 : 1400; // how long a new line takes to draw itself outward
 const linkMaterial = new THREE.MeshBasicMaterial({ color: 0x8a5fe0, depthTest: false, depthWrite: false });
 const linkGeometry = new THREE.CylinderGeometry(0.02, 0.02, 1, 6);
-const arrowGeometry = new THREE.ConeGeometry(0.1, 0.28, 12); // points along +Y, like the line
+const arrowGeometry = new THREE.ConeGeometry(0.075, 0.2, 12); // points along +Y, like the line
+// Arrowheads repeat along the whole line and flow from whoever was harsh toward whoever was hurt,
+// so the direction reads on any stretch of line that shows between the windows.
+const ARROW_SPACING = 0.55;                // backdrop metres between arrowheads
+const ARROW_SPEED = FAST ? 0 : 0.00022;    // spacings per millisecond
 // Lines are drawn on a backdrop this far from the viewer, straight behind each window. A line
 // between a left and a right window would otherwise cut through the space right in front of you.
 const BACKDROP = 6;
@@ -487,23 +491,33 @@ function tickLinks(now) {
   for (const link of links) {
     if (!link.mesh) {
       link.mesh = new THREE.Mesh(linkGeometry, linkMaterial);
-      link.arrow = new THREE.Mesh(arrowGeometry, linkMaterial); // points from whoever was harsh to whoever was hurt
-      link.mesh.renderOrder = link.arrow.renderOrder = BEHIND;
-      stage.add(link.mesh, link.arrow);
+      link.mesh.renderOrder = BEHIND;
+      link.arrows = []; // arrowheads, made as the line needs them
+      stage.add(link.mesh);
     }
     const show = linkEnds(link, endA, endB);
-    link.mesh.visible = link.arrow.visible = show;
-    if (!show) continue;
+    link.mesh.visible = show;
+    if (!show) { for (const arrow of link.arrows) arrow.visible = false; continue; }
     const grown = Math.min((now - link.born) / LINK_GROW, 1);
     along.subVectors(endB, endA);
     const length = along.length();
     link.mesh.quaternion.setFromUnitVectors(UP, along.normalize());
     link.mesh.scale.set(1, Math.max(length * grown, 0.001), 1);
     link.mesh.position.copy(endA).addScaledVector(along, (length * grown) / 2);
-    // The arrow sits halfway along, in the open space between the two windows.
-    link.arrow.quaternion.copy(link.mesh.quaternion);
-    link.arrow.position.copy(endA).addScaledVector(along, length * 0.5);
-    link.arrow.visible = grown >= 0.55;
+    const count = Math.max(2, Math.round(length / ARROW_SPACING));
+    while (link.arrows.length < count) {
+      const arrow = new THREE.Mesh(arrowGeometry, linkMaterial);
+      arrow.renderOrder = BEHIND;
+      stage.add(arrow);
+      link.arrows.push(arrow);
+    }
+    const flow = (now * ARROW_SPEED) % 1;
+    link.arrows.forEach((arrow, i) => {
+      const t = (i + flow) / count; // 0 at the harsh end, 1 at the hurt end
+      arrow.visible = i < count && t <= grown;
+      arrow.quaternion.copy(link.mesh.quaternion);
+      arrow.position.copy(endA).addScaledVector(along, length * t);
+    });
   }
 }
 
