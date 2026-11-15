@@ -20,8 +20,8 @@ function fanAngle(at) {
 }
 // The whole graph has to fit in view at once, so the rings are tight and the nodes are small
 // compared with the main window, like the dots around the hub of a network diagram.
-const RING = [0, 1.35, 1.95, 2.45, 2.9]; // distance from the centre for each step outward, in metres
-const SIZE = [1, 0.62, 0.52, 0.45, 0.4]; // window size for each step, as a fraction of a full side window
+const RING = [0, 1.5, 2.25, 2.9, 3.45];    // distance from the centre for each step outward, in metres
+const SIZE = [1, 0.82, 0.7, 0.6, 0.52];    // window size for each step, as a fraction of a full side window
 const FAN = 110;                         // the widest a person's own branches may spread
 const STRETCH_X = 1.1, STRETCH_Y = 0.6, LIFT = 0.05; // the main window is wide, so the rings are ovals
 

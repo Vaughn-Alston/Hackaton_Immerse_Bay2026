@@ -55,6 +55,17 @@ const stage = new THREE.Group(); // everything hangs here, in front of the viewe
 stage.position.set(0, 1.62, -VIEW_DISTANCE);
 scene.add(stage);
 
+// A dark dome around the viewer. In the headset the app runs over passthrough, and a bright room
+// behind the windows washes the videos out; this hides the room behind near-black. It is opaque
+// and painted before everything else, so the graph lines and the windows all sit on top of it.
+const dome = new THREE.Mesh(
+  new THREE.SphereGeometry(30, 32, 16),
+  new THREE.MeshBasicMaterial({ color: 0x050507, side: THREE.BackSide, depthWrite: false, depthTest: false }),
+);
+dome.renderOrder = -100;
+dome.position.set(0, 1.5, 0);
+scene.add(dome);
+
 addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
