@@ -68,7 +68,7 @@ Keep one consistent world:
 Field notes:
 - place: a sentence fragment setting location and light for a video prompt.
 - otherId: the id of an existing character to bring back, or an empty string to introduce someone new.
-- other: only used when otherId is empty. name is a first name nobody in the world has. appearanceDescription is one clause with age, hair and two distinctive pieces of clothing, like "a woman in her fifties with a long silver braid, a green cardigan and a canvas tote bag". personality is a few words. kid is true for a child.
+- other: only used when otherId is empty. name is a first name nobody in the world has. appearanceDescription is one clause with age, hair and two distinctive pieces of clothing, like "a woman in her fifties with a long silver braid, a green cardigan and a canvas tote bag". personality is a few words. kid is true for a child. voiceProfile must match the described person exactly: adult-woman, adult-man, child, or adult-neutral when gender is deliberately unspecified.
 - beat: one short clause starting with a verb describing what the character visibly does. No names and no quoted speech; the video model knows neither.
 - after: one short sentence shown after a choice is made, the honest emotional aftertaste. A harsh choice may include its moment of release. Use the literal tokens {A} for the main character and {R} for the other person if you need to name them.`;
 
@@ -79,7 +79,9 @@ function describeWorld(world, mainId, engagedId) {
       : c.storyMode === "AI_SIDE_STORY" ? "side story" : "met, not on screen";
     const memory = (c.storyMemory ?? []).slice(-5).map((m) =>
       m.role === "actor" ? `was ${m.action === "NEGATIVE" ? "harsh" : "kind"} to ${name(m.with)}` : `was treated ${m.action === "NEGATIVE" ? "harshly" : "kindly"} by ${name(m.with)}`).join("; ");
-    return `- id ${c.characterId}: ${c.name}${c.kid ? " (child)" : ""}${c.role ? ` [family: ${c.role}]` : ""}, ${c.appearanceDescription}. Personality: ${c.personality || "unknown"}. Mood: ${c.currentEmotion}. Monster: ${c.monsterState}. Role now: ${role}. Last seen: ${c.currentLocation || "unknown"}. History: ${memory || "none yet"}.`;
+    const acting = c.emotionalProfile?.performanceDirection ? ` Acting direction: ${c.emotionalProfile.performanceDirection}.` : "";
+    const voice = c.voice?.savedSoundSlug ? ` Locked Satie voice: ${c.voice.savedSoundSlug}.` : ` Voice class: ${c.voiceProfile || "adult-neutral"}.`;
+    return `- id ${c.characterId}: ${c.name}${c.kid ? " (child)" : ""}${c.role ? ` [family: ${c.role}]` : ""}, ${c.appearanceDescription}. Personality: ${c.personality || "unknown"}. Mood: ${c.currentEmotion}. Monster: ${c.monsterState}. Role now: ${role}. Last seen: ${c.currentLocation || "unknown"}. History: ${memory || "none yet"}.${acting}${voice}`;
   }).join("\n");
 }
 
@@ -90,7 +92,10 @@ function describeWorld(world, mainId, engagedId) {
 export async function direct({ mode = "side", clock = "", world = [], mainId = null, engagedId = null, candidates = [], actorId = null }) {
   if (!(await loadClaude())) return null;
   const overview = `The time is ${clock || "mid-morning"}.\n\nThe world right now:\n${describeWorld(world, mainId, engagedId)}\n\n`;
-  const other = (z) => z.object({ name: z.string(), appearanceDescription: z.string(), personality: z.string(), kid: z.boolean() });
+  const other = (z) => z.object({
+    name: z.string(), appearanceDescription: z.string(), personality: z.string(), kid: z.boolean(),
+    voiceProfile: z.enum(["adult-woman", "adult-man", "child", "adult-neutral"]),
+  });
   const plan = mode === "main"
     ? await ask(
         DIRECTOR_SYSTEM,

@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "1.0",
+  "storyId": "the-ripple-episode-01",
+  "promptReferences": [
+    {
+      "id": "anger-monster",
+      "path": "anger-monster.md",
+      "purpose": "Canonical visual, camera, emotional, and story direction for the anger-monster generation model."
+    }
+  ],
+  "audioProvider": {
+    "id": "satie",
+    "mcpUrl": "https://www.satie.world/mcp",
+    "selectionPolicy": "Resolve savedSoundSlug exactly. Never substitute a different saved sound for a locked character voice."
+  },
+  "voiceCasting": {
+    "policy": "Explicit character voices win. Otherwise cast once by voiceProfile, persist the assignment, and serialize all speech through the front-and-center queue.",
+    "pools": {
+      "adult-woman": [
+        { "savedSoundSlug": "one-relaxed-adult-outdoor-3", "assetUrl": "/ripple/audio/voices/one-relaxed-adult-outdoor-3.mp3" },
+        { "savedSoundSlug": "brief-relaxed-conversational", "assetUrl": "/ripple/audio/voices/brief-relaxed-conversational.mp3" },
+        { "savedSoundSlug": "one-nearby-adult-speaking-4", "assetUrl": "/ripple/audio/voices/one-nearby-adult-speaking-4.mp3" }
+      ],
+      "adult-man": [
+        { "savedSoundSlug": "one-adult-making-brief-4", "assetUrl": "/ripple/audio/voices/one-adult-making-brief-4.mp3" },
+        { "savedSoundSlug": "brief-relaxed-conversational-4", "assetUrl": "/ripple/audio/voices/brief-relaxed-conversational-4.mp3" },
+        { "savedSoundSlug": "one-adult-speaking-brief-3", "assetUrl": "/ripple/audio/voices/one-adult-speaking-brief-3.mp3" }
+      ],
+      "child": [
+        { "savedSoundSlug": "one-child-chatting-calling-2", "assetUrl": "/ripple/audio/voices/one-child-chatting-calling-2.mp3" },
+        { "savedSoundSlug": "one-child-chatting-calling-4", "assetUrl": "/ripple/audio/voices/one-child-chatting-calling-4.mp3" },
+        { "savedSoundSlug": "one-child-chatting-calling-3", "assetUrl": "/ripple/audio/voices/one-child-chatting-calling-3.mp3" }
+      ]
+    }
+  },
+  "characters": {
+    "person_mom": {
+      "name": "Mom",
+      "role": "mom",
+      "appearanceDescription": "a woman in her late thirties with shoulder-length auburn hair, a cream knitted cardigan and grey lounge trousers",
+      "personality": "organised and exhausted, feels she carries the whole house",
+      "voiceProfile": "adult-woman",
+      "emotionalProfile": {
+        "baseline": "tired, responsible, and holding in resentment",
+        "openingEmotion": "angry frustration",
+        "expression": "furrowed brow, narrowed tired eyes, lips pressed before speaking, tense jaw, shoulders held high, short controlled breath",
+        "bodyLanguage": "turns sharply from the open dishwasher, one hand braced on its door, restrained movements that threaten to become abrupt",
+        "performanceDirection": "The anger is grounded rather than theatrical: she is exhausted and feels abandoned with the household work. Let hurt sit underneath the accusation."
+      },
+      "voice": {
+        "provider": "satie",
+        "savedSoundSlug": "warm-adult-voice",
+        "savedSoundName": "warm-adult-voice",
+        "assetUrl": "/ripple/satie/audio/warm-adult-voice.mp3",
+        "voiceClass": "adult-woman",
+        "lockedAcrossScenes": true,
+        "loopForTurn": true,
+        "tags": ["adult", "warm", "conversational"],
+        "sourceDescription": "The exact saved Satie sound warm-adult-voice from Playlist 1.",
+        "delivery": "warm adult vocal identity with controlled anger and fatigue underneath",
+        "neverChangeForEmotion": true
+      },
+      "scriptedDialogue": [
+        {
+          "sceneId": "dishwasher-opening",
+          "text": "Why didn't you start the dishwasher last night?",
+          "emotion": "angry frustration",
+          "delivery": "quiet but pointed; clipped final word; no shouting"
+        }
+      ]
+    },
+    "person_dad": {
+      "name": "Dad",
+      "role": "dad",
+      "appearanceDescription": "a man in his early forties with short dark hair and glasses, a light blue shirt and a navy jacket with a doctor's ID badge",
+      "personality": "gentle, avoids conflict, swallows things instead of saying them",
+      "voiceProfile": "adult-man",
+      "emotionalProfile": {
+        "baseline": "gentle, tired, and conflict-avoidant",
+        "openingEmotion": "apologetic resignation",
+        "expression": "brief downward glance, softened eyes behind his glasses, small restrained wince, mouth barely moving",
+        "bodyLanguage": "shoulders dip, hands pause over his work bag, then he looks away rather than defending himself",
+        "performanceDirection": "Keep the apology brief and sincere. He is hurt but chooses not to mention that he cleaned the kitchen."
+      },
+      "voice": {
+        "provider": "satie",
+        "savedSoundSlug": "brief-excited-baseball",
+        "savedSoundName": "brief-excited-baseball",
+        "assetUrl": "/ripple/satie/audio/brief-excited-baseball.mp3",
+        "voiceClass": "adult-man",
+        "lockedAcrossScenes": true,
+        "loopForTurn": true,
+        "tags": ["adult", "excited", "baseball"],
+        "sourceDescription": "The exact saved Satie sound brief-excited-baseball from Playlist 1.",
+        "delivery": "brief energetic male vocal identity; host captions contain the actual dialogue",
+        "neverChangeForEmotion": true
+      },
+      "scriptedDialogue": [
+        {
+          "sceneId": "dishwasher-opening",
+          "text": "Sorry. I forgot.",
+          "emotion": "apologetic resignation",
+          "delivery": "two short phrases with a small pause; quiet and unargumentative"
+        }
+      ]
+    },
+    "person_mia": {
+      "name": "Mia",
+      "role": "child",
+      "appearanceDescription": "a seven-year-old girl with two brown braids, a yellow cardigan and a red school backpack",
+      "personality": "bright and sensitive, takes things to heart",
+      "voiceProfile": "child",
+      "emotionalProfile": {
+        "baseline": "bright, observant, and eager for connection",
+        "openingEmotion": "hopeful excitement",
+        "expression": "wide expectant eyes and an unguarded smile",
+        "bodyLanguage": "holds her drawing out with both hands and leans forward for a response",
+        "performanceDirection": "Keep her natural and specific, never precocious or overly cute."
+      },
+      "voice": null,
+      "scriptedDialogue": []
+    }
+  },
+  "continuityRules": [
+    "A character's voice.savedSoundSlug is identity data, not scene data.",
+    "If voice.lockedAcrossScenes is true, every spoken line for that character must use that exact Satie saved sound.",
+    "Emotion changes delivery and expression, never the selected voice.",
+    "Visual generation must combine anger-monster.md with the active character's appearanceDescription and emotionalProfile.",
+    "Do not infer a voice for a character whose voice property is null."
+  ]
+}

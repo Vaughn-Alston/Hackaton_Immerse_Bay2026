@@ -31,6 +31,9 @@ export class World {
       role: def.role ?? "",                           // mom, dad or child for the family
       routine: def.routine ? [...def.routine] : [],   // places this person is headed first
       voiceProfile: def.voiceProfile ?? "",
+      voice: def.voice ? structuredClone(def.voice) : null,
+      emotionalProfile: def.emotionalProfile ? structuredClone(def.emotionalProfile) : null,
+      scriptedDialogue: def.scriptedDialogue ? structuredClone(def.scriptedDialogue) : [],
       currentEmotion: "calm",
       monsterState: NONE,
       positiveStreak: 0,

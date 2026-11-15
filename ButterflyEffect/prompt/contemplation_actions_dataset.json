@@ -1,0 +1,78 @@
+{
+  "concept": "Contemplation and Spacing Out",
+  "definition": "A cognitive state ranging from deep, active reflection and problem-solving to passive mental detachment, daydreaming, or zoning out from immediate physical surroundings.",
+  "core_meaning": "Indicates internal focus, emotional processing, mental fatigue, or sudden realization where external stimuli temporarily lose priority.",
+  "narrative_context": "Often occurs in solitude or during pauses in action; signals character development, internal conflict, or a transition between scenes.",
+  "actions": [
+    {
+      "action_id": "ACT_001",
+      "name": "The Vacant Wall Stare (Spacing Out)",
+      "social_context": "Almost exclusively occurs alone in private spaces (e.g., living room, kitchen, empty hallway).",
+      "body_posture": "Standing completely still with hands resting on hips, weight slightly shifted to one leg, shoulders relaxed or slightly slumped.",
+      "facial_structure": {
+        "eyes": "Unfocused, fixed straight ahead at a blank wall, minimal blinking, pupils slightly dilated.",
+        "brows": "Completely neutral and relaxed, devoid of tension.",
+        "mouth": "Slack, lips either resting loosely together or slightly parted.",
+        "head_angle": "Level and stationary, locked onto the empty focal point."
+      },
+      "meaning": "Complete mental detachment or cognitive overload; the character's mind has temporarily paused processing external reality after an exhausting event or overwhelming thought.",
+      "storyline_usage": "Use after an intense argument, a long shift, or receiving shocking news to show emotional numbness or mental buffering."
+    },
+    {
+      "action_id": "ACT_002",
+      "name": "The Window Gaze (Melancholic Reflection)",
+      "social_context": "Usually alone, though can occur in a quiet room with others ignored in the background.",
+      "body_posture": "Seated or leaning against a doorframe, arms loosely crossed or one hand resting on a nearby surface.",
+      "facial_structure": {
+        "eyes": "Heavy upper eyelids, gaze directed downward and outward toward distant scenery, slow deliberate blinks.",
+        "brows": "Inner corners slightly drawn upward and inward, creating subtle tension.",
+        "mouth": "Softly closed, corners of the mouth neutral or turned faintly downward.",
+        "head_angle": "Tilted slightly downward and toward the light source."
+      },
+      "meaning": "Quiet longing, regret, or processing past events without an immediate urge to act.",
+      "storyline_usage": "Use during quiet transitional beats to convey nostalgia, grief, or internal reckoning."
+    },
+    {
+      "action_id": "ACT_003",
+      "name": "The Chin-Rest Calculation (Active Problem-Solving)",
+      "social_context": "Occurs alone at a desk or in a group setting during a pause in conversation.",
+      "body_posture": "Leaning forward slightly, elbow propped on a table or knee, thumb and index finger cradling the chin or jawline.",
+      "facial_structure": {
+        "eyes": "Narrowed slightly, shifting slowly side-to-side as if scanning invisible options.",
+        "brows": "Drawn together at the center, forming a distinct vertical crease (glabella furrow).",
+        "mouth": "Lips pressed firmly together, lower lip pushed slightly upward.",
+        "head_angle": "Angled slightly downward and to the side."
+      },
+      "meaning": "Intense analytical focus; weighing risks, piecing together clues, or strategizing a next move.",
+      "storyline_usage": "Use when a character is uncovering a mystery, planning a confrontation, or making a critical decision."
+    },
+    {
+      "action_id": "ACT_004",
+      "name": "The Mid-Task Freeze (Sudden Realization)",
+      "social_context": "Frequently happens alone during mundane routines (e.g., holding a coffee mug, keys in hand).",
+      "body_posture": "Abruptly halted mid-motion, limbs frozen in an incomplete gesture.",
+      "facial_structure": {
+        "eyes": "Widened slightly, snapping into sharp focus on nothing in particular.",
+        "brows": "One or both eyebrows subtly raised in surprise or recognition.",
+        "mouth": "Slightly open as if inhaling before speaking, jaw relaxed.",
+        "head_angle": "Slightly lifted or turned sharply to one side."
+      },
+      "meaning": "A sudden memory recall, epiphany, or realization of a forgotten detail.",
+      "storyline_usage": "Use as a plot-turning beat when a character connects two clues or remembers a vital detail."
+    },
+    {
+      "action_id": "ACT_005",
+      "name": "The Ceiling Look-Up (Mental Reset / Exhaustion)",
+      "social_context": "Commonly alone in a private space after closing a door or sitting down.",
+      "body_posture": "Slumped back in a chair or leaning back against a wall, hands hanging loosely at sides or resting on thighs.",
+      "facial_structure": {
+        "eyes": "Directed straight up toward the ceiling, unfocused, sometimes followed by a slow eye close.",
+        "brows": "Raised slightly, stretching the forehead before relaxing.",
+        "mouth": "Parted for a slow exhale, cheeks slightly hollowed.",
+        "head_angle": "Tilted back at a 30-to-45-degree angle."
+      },
+      "meaning": "Seeking mental clarity, suppressing frustration, or gathering composure before taking action.",
+      "storyline_usage": "Use right before a character steps into a high-stakes situation or after surviving a stressful encounter."
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "1.0",
+  "sceneId": "dishwasher-opening",
+  "playlist": { "provider": "satie", "name": "Playlist 1" },
+  "selection": {
+    "triggerClassification": "NEGATIVE",
+    "strategy": "uniform-random",
+    "minActionId": 1,
+    "maxActionId": 5
+  },
+  "storyStart": {
+    "event": "story_start",
+    "sound": "grand-piano-g6",
+    "clipPath": "Audio/grand-piano-g6",
+    "mode": "oneshot",
+    "oncePerStory": true
+  },
+  "characterDialogue": {
+    "person_dad": { "event": "dialogue_dad", "sound": "brief-excited-baseball", "clipPath": "Audio/brief-excited-baseball", "mode": "loop-for-turn" },
+    "person_mom": { "event": "dialogue_mom", "sound": "warm-adult-voice", "clipPath": "Audio/warm-adult-voice", "mode": "loop-for-turn" }
+  },
+  "actions": [
+    {
+      "id": 1,
+      "name": "slap",
+      "animationTrigger": "reaction_slap",
+      "sound": { "event": "reaction", "savedSoundSlug": "hand-clap-8", "clipPath": "Audio/hand-clap-8", "mode": "gated-oneshot", "maxDurationMs": 120 },
+      "promptTemplates": [
+        "{reactor} recoils, then slaps {actor}; treat the motion as a serious rupture, not comedy or triumph.",
+        "Hurt flashes across {reactor}'s face before a single sharp slap toward {actor}; immediately hold on the emotional consequence."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "yell",
+      "animationTrigger": "reaction_yell",
+      "sound": { "event": "reaction", "characterVoice": true, "mode": "loop-for-animation" },
+      "promptTemplates": [
+        "{reactor} raises their voice at {actor}, anger covering exhaustion and hurt.",
+        "{reactor} takes one step forward and yells back at {actor}, then catches their breath."
+      ]
+    },
+    {
+      "id": 3,
+      "name": "frown",
+      "animationTrigger": "reaction_frown",
+      "sound": null,
+      "promptTemplates": [
+        "{reactor} frowns at {actor}, jaw tight, and lets the silence carry the disappointment.",
+        "{reactor}'s expression closes; they look at {actor} with a tired, wounded frown."
+      ]
+    },
+    {
+      "id": 4,
+      "name": "bark",
+      "animationTrigger": "reaction_bark",
+      "sound": { "event": "reaction", "characterVoice": true, "mode": "loop-for-animation" },
+      "promptTemplates": [
+        "{reactor} barks a short, clipped reply at {actor}, impatient and defensive.",
+        "{reactor} snaps back at {actor} in one abrupt burst, then looks away."
+      ]
+    },
+    {
+      "id": 5,
+      "name": "none",
+      "animationTrigger": null,
+      "sound": null,
+      "promptTemplates": [
+        "{reactor} gives {actor} no visible response; the unresolved tension remains in the room.",
+        "{reactor} stays still and says nothing to {actor}, withholding a reaction."
+      ]
+    }
+  ],
+  "objectBindings": {
+    "dishwasher": {
+      "open": { "event": "object_interaction", "animationTrigger": "dishwasher_open", "sound": null },
+      "close": { "event": "object_interaction", "animationTrigger": "dishwasher_close", "sound": null },
+      "start": { "event": "object_interaction", "animationTrigger": "dishwasher_start", "sound": null }
+    },
+    "dishes": {
+      "pick_up": { "event": "object_interaction", "animationTrigger": "dishes_pick_up", "sound": null },
+      "put_away": { "event": "object_interaction", "animationTrigger": "dishes_put_away", "sound": null }
+    }
+  }
+}

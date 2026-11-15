@@ -27,9 +27,12 @@ const MAX_SESSION_SECONDS = Number(process.env.MAX_SESSION_SECONDS || 900);
 const TOKEN_LIFETIME_SECONDS = Number(process.env.TOKEN_LIFETIME_SECONDS || 900);
 
 const STORY_FILE = path.join(here, "..", "prompt", "story.json");
+const CHARACTERS_FILE = path.join(here, "..", "prompt", "characters.json");
+const INTERACTION_AUDIO_FILE = path.join(here, "..", "prompt", "interaction-audio.json");
+const ANGER_MONSTER_FILE = path.join(here, "..", "prompt", "anger-monster.md");
 const PAGE_FILE = path.join(here, "public", "index.html");
 const RIPPLE_DIR = path.join(here, "public", "ripple");
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".mp3": "audio/mpeg", ".satie": "text/plain" };
 
 async function readBody(req, limit = 8_000_000) {
   const chunks = [];
@@ -43,12 +46,13 @@ async function readBody(req, limit = 8_000_000) {
 }
 
 function send(res, status, body, type = "application/json") {
+  const binary = Buffer.isBuffer(body);
   res.writeHead(status, {
-    "Content-Type": `${type}; charset=utf-8`,
+    "Content-Type": binary ? type : `${type}; charset=utf-8`,
     "Cache-Control": "no-store",
     "Access-Control-Allow-Origin": "*",
   });
-  res.end(typeof body === "string" ? body : JSON.stringify(body));
+  res.end(typeof body === "string" || binary ? body : JSON.stringify(body));
 }
 
 async function mintToken() {
@@ -90,6 +94,19 @@ const server = http.createServer(async (req, res) => {
       JSON.parse(story); // fail loudly here rather than in the headset
       return send(res, 200, story);
     }
+    if (req.method === "GET" && url.pathname === "/characters") {
+      const characters = await readFile(CHARACTERS_FILE, "utf8");
+      JSON.parse(characters);
+      return send(res, 200, characters);
+    }
+    if (req.method === "GET" && url.pathname === "/interaction-audio") {
+      const interactionAudio = await readFile(INTERACTION_AUDIO_FILE, "utf8");
+      JSON.parse(interactionAudio);
+      return send(res, 200, interactionAudio);
+    }
+    if (req.method === "GET" && url.pathname === "/prompt/anger-monster") {
+      return send(res, 200, await readFile(ANGER_MONSTER_FILE, "utf8"), "text/markdown");
+    }
     if (req.method === "GET" && url.pathname === "/health") {
       return send(res, 200, {
         ok: true, model: MODEL, keyConfigured: Boolean(API_KEY) && !API_KEY.startsWith("rk_replace"),
@@ -106,7 +123,7 @@ const server = http.createServer(async (req, res) => {
       const file = path.join(RIPPLE_DIR, path.normalize(url.pathname.slice("/ripple/".length) || "index.html"));
       const type = TYPES[path.extname(file)];
       if (!file.startsWith(RIPPLE_DIR + path.sep) || !type || !existsSync(file)) return send(res, 404, { error: "not found" });
-      return send(res, 200, await readFile(file, "utf8"), type);
+      return send(res, 200, await readFile(file), type);
     }
     if (req.method === "POST" && url.pathname === "/direct") {
       const beat = await direct(JSON.parse(await readBody(req)));

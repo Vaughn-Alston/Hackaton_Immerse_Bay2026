@@ -14,6 +14,10 @@ import {
   soloPrompt, encounterPrompt, outcomePrompt, exitPrompt, eveningPrompt, localSideBeat,
 } from "./content.js";
 import { LiveStream } from "./stream.js";
+import { quotedSpeech } from "./voice-casting.js";
+import { VoiceDirector } from "./voice-director.js";
+import { reactionForResponse } from "./reaction-engine.js";
+import { SfxDirector } from "./sfx-director.js";
 
 const params = new URLSearchParams(location.search);
 const MOCK = params.has("mock");
@@ -21,6 +25,7 @@ const FAST = params.has("fast");
 const AUTO = (params.get("auto") ?? "").toUpperCase();
 const TURNS = Number(params.get("turns") ?? 10);
 const HOLD = FAST ? 250 : 11000;       // how long a beat plays before the story moves on
+const CONTEMPLATE = FAST ? 100 : 3500; // let the carrier's silent close-up read before choices appear
 const SIDE_EVERY = FAST ? 400 : 30000; // pause between AI side-story beats
 const EXIT = FAST ? 100 : 5000;         // how long we watch someone leave before their side window appears
 const SETTLE = FAST ? 0 : 9000;         // how long a new moment plays before the main picture holds for the choice
@@ -33,6 +38,14 @@ const CLOCK = ["7:45 AM", "8:50 AM", "9:40 AM", "10:30 AM", "11:30 AM", "12:40 P
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
+const voices = new VoiceDirector((state) => {
+  const label = $("voice-status");
+  if (!label) return;
+  label.textContent = state?.playing
+    ? `${state.character.name} is speaking`
+    : "";
+});
+const sfx = new SfxDirector();
 
 // ---------------------------------------------------------------- scene
 
@@ -148,10 +161,10 @@ class Panel {
     this.screen.material.needsUpdate = true;
   }
 
-  label(name, detail, live = false) {
+  label(name, detail) {
     this.plate.draw([
-      { text: name + (live ? "  · live" : ""), size: 52, bold: true },
-      { text: detail, size: 38, color: "#b9b6ae" },
+      { text: name, size: 58, bold: true },
+      { text: detail, size: 42, color: "#c9c5ce" },
     ]);
   }
 
@@ -194,13 +207,13 @@ class Panel {
   dispose() { panels.delete(this); this.group.removeFromParent(); }
 }
 
-const mainPanel = new Panel(1.6, 0.2, 1280, true); // name plate ends at y = -0.675
+const mainPanel = new Panel(1.78, 0.28, 1280); // a roomier family/main-story window
 stage.add(mainPanel.group);
 
-const hud = new TextPlate(1.6, 0.17);
+const hud = new TextPlate(1.78, 0.15);
 hud.mesh.position.y = 0.45 + 0.24; // clear of the Monsters on the window's top edge
-const caption = new TextPlate(1.6, 0.3);
-caption.mesh.position.y = -0.85; // -0.70 to -1.00, with the choices below it
+const caption = new TextPlate(1.78, 0.36);
+caption.mesh.position.y = -0.84;
 stage.add(hud.mesh, caption.mesh);
 
 // Side windows sit on an arc around the viewer: [angle in degrees, height].
@@ -212,12 +225,12 @@ const sidePanels = new Map(); // characterId -> { panel, slot, detail, stream, c
 
 // Three identical plates in one row under the caption. Point and pull the trigger, click, or press 1 / 2 / 3.
 const choiceButtons = [0, 1, 2].map((index) => {
-  const plate = new TextPlate(0.72, 0.42, 720);
-  const border = new THREE.Mesh(new THREE.PlaneGeometry(0.735, 0.435), new THREE.MeshBasicMaterial({ color: 0x3a3a40 }));
+  const plate = new TextPlate(0.78, 0.48, 720);
+  const border = new THREE.Mesh(new THREE.PlaneGeometry(0.795, 0.495), new THREE.MeshBasicMaterial({ color: 0x3a3a40 }));
   border.position.z = -0.004;
   const group = new THREE.Group();
   group.add(border, plate.mesh);
-  group.position.set((index - 1) * 0.75, -1.23, 0.02);
+  group.position.set((index - 1) * 0.81, -1.43, 0.02);
   group.visible = false;
   plate.mesh.userData.choiceIndex = index;
   stage.add(group);
@@ -231,7 +244,7 @@ function drawChoice(index, lit) {
   const button = choiceButtons[index];
   button.plate.draw([
     { text: String(index + 1), size: 30, color: "#8d8a84", bold: true },
-    { text: pendingChoice?.choices[index].label ?? "", size: 56 },
+    { text: pendingChoice?.choices[index].label ?? "", size: 64 },
   ], lit ? "rgba(44,36,60,0.96)" : "rgba(18,18,22,0.92)");
   button.border.material.color.set(lit ? 0xb48cff : 0x3a3a40);
 }
@@ -310,6 +323,7 @@ addEventListener("keydown", (event) => {
 // ---------------------------------------------------------------- state
 
 const world = new World();
+let characterManifest = null, interactionAudio = null;
 let main, health = {};
 let running = false, phase = "day", clock = "7:30 AM", engagedId = null, otherId = null, autoIndex = 0, sideTurn = 0;
 let family = []; // [mom, dad, child]
@@ -317,15 +331,37 @@ const heldBack = new Set(); // still leaving the main scene: no side window yet
 const busy = new Set();     // in the middle of a side-story interaction
 let hudStatus = "";
 
+/** Adds a character and permanently casts their voice before their first scene. */
+function addCharacter(def) {
+  const character = world.add(def);
+  voices.assign(character);
+  return character;
+}
+
+/** Character identity is loaded from prompt/characters.json; scene code may not replace a locked voice. */
+function canonicalCharacter(def) {
+  const saved = characterManifest?.characters?.[def.characterId];
+  if (!saved) return def;
+  return {
+    ...def,
+    appearanceDescription: saved.appearanceDescription ?? def.appearanceDescription,
+    personality: saved.personality ?? def.personality,
+    emotionalProfile: saved.emotionalProfile ?? null,
+    voiceProfile: saved.voiceProfile ?? def.voiceProfile ?? "adult-neutral",
+    voice: saved.voice ?? null,
+    scriptedDialogue: saved.scriptedDialogue ?? [],
+  };
+}
+
 /** Adds someone new to the world: the director's invention if it gave one, otherwise the next unused cast member. */
 function newCharacter(custom, kid = false) {
   if (world.list().length >= MAX_CHARACTERS) return null;
   const taken = new Set(world.list().map((c) => c.name.toLowerCase()));
   if (custom?.name && custom?.appearanceDescription && !taken.has(custom.name.toLowerCase())) {
-    return world.add({ ...custom, characterId: "person_" + custom.name.toLowerCase().replace(/\W+/g, "_") });
+    return addCharacter({ ...custom, characterId: "person_" + custom.name.toLowerCase().replace(/\W+/g, "_") });
   }
   const next = CAST.find((c) => !taken.has(c.name.toLowerCase()) && c.kid === kid);
-  return next ? world.add(next) : null;
+  return next ? addCharacter(next) : null;
 }
 
 /**
@@ -341,20 +377,18 @@ function someoneToMeet(actor, custom, existingId) {
 }
 
 function setCaption(text, detail = "") {
-  caption.draw([{ text, size: 42 }, { text: detail, size: 34, color: "#b9b6ae" }]);
+  caption.draw([{ text, size: 50 }, { text: detail, size: 40, color: "#c9c5ce" }]);
   $("caption").textContent = detail ? `${text}  ${detail}` : text;
 }
 
 function drawHud() {
   hud.draw([
-    { text: `Monsters in the world: ${world.monsterCount}`, size: 50, bold: true, color: world.monsterCount ? "#b48cff" : "#8fd694" },
-    { text: [clock, hudStatus].filter(Boolean).join("   ·   "), size: 36, color: "#b9b6ae" },
+    { text: [clock, hudStatus].filter(Boolean).join("   ·   "), size: 46, color: "#dedbe2", bold: true },
   ]);
-  $("status").textContent = `${clock}. ${world.monsterCount} monster(s). ${hudStatus}`;
+  $("status").textContent = [clock, hudStatus].filter(Boolean).join(". ");
 }
 const setStatus = (text) => { hudStatus = text; drawHud(); };
 
-const describe = (c) => c.monsterState === NONE ? "no monster" : c.monsterState === SMALL ? "small monster" : "carrying a monster";
 const isFamily = (c) => family.includes(c);
 
 /** Brings windows, labels and Monsters in line with the world state. */
@@ -366,7 +400,7 @@ function refresh() {
     const isSide = evening ? !isFamily(c) : c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE && !heldBack.has(c.characterId);
     if (isSide && !sidePanels.has(c.characterId) && freeSlots.length) {
       const slot = freeSlots.shift();
-      const panel = new Panel(0.78);
+      const panel = new Panel(0.84, 0.2, 896);
       const [degrees, y] = SLOTS[slot];
       const angle = THREE.MathUtils.degToRad(degrees);
       // The viewer stands at (0, 0, VIEW_DISTANCE) in stage space.
@@ -394,7 +428,7 @@ function refresh() {
         // Monster gone: let the dissolve play, then the window leaves the network.
         entry.closing = true;
         entry.panel.setMonsters(null);
-        entry.panel.label(c.name, entry.detail, entry.live);
+        entry.panel.label(`${c.name}'s day goes on`, entry.detail);
         setTimeout(() => { if (sidePanels.get(c.characterId) === entry && entry.closing) closeSide(c.characterId); refresh(); }, HOLD);
       }
     }
@@ -404,19 +438,19 @@ function refresh() {
     if (entry.closing && (evening || c.monsterState !== NONE)) entry.closing = false; // caught a new one, or evening came
     if (entry.closing) continue;
     entry.panel.setMonsters(c);
-    entry.panel.label(c.name, entry.detail, entry.live); // just the name until an interaction has played
+    entry.panel.label(`${c.name}'s day goes on`, entry.detail);
   }
 
   if (evening) {
     const [mom, dad, child] = family;
     mainPanel.setMonsters(mom, dad, child);
-    mainPanel.label("Dinner", family.map((c) => `${c.name}: ${describe(c)}`).join("   ·   "));
+    mainPanel.label("Dinner", "The family comes back to the same table.");
   } else {
     const lead = world.main;
     const other = otherId && otherId !== world.mainId ? world.get(otherId) : null;
     mainPanel.setMonsters(lead, other);
     if (lead) {
-      mainPanel.label(lead.name, describe(lead) + (other ? `   ·   ${other.name}: ${describe(other)}` : ""));
+      mainPanel.label(lead.name, other ? `With ${other.name}` : "Their day continues");
       lead.activeWindowId = "window_main";
     }
   }
@@ -587,11 +621,8 @@ async function sideBeat() {
     const types = world.resolve(actor.characterId, other.characterId, beat.action, beat.caption).map((e) => e.type);
     const entry = sidePanels.get(actor.characterId);
     if (entry) {
-      // Always say where the Monster stands, so one kind act is not mistaken for the end.
-      const progress = beat.action === "NEGATIVE" ? (types.includes("MONSTER_REGROWN") ? "Monster back to full size." : "")
-        : types.includes("MONSTER_REMOVED") ? "Kind twice: monster gone." : "Kind 1 of 2: monster shrinks.";
       const what = beat.caption || (beat.action === "NEGATIVE" ? `takes it out on ${other.name}` : `is kind to ${other.name}`);
-      entry.detail = `${what.replace(/\.$/, "")}. ${progress}`.trim();
+      entry.detail = `${what.replace(/\.$/, "")}. The moment stays with them.`;
     }
     refresh();
     if (types.includes("SIDE_STORY_CREATED")) showSide(other, soloPrompt(other, "walks on alone, hurt and trying not to show it"));
@@ -631,20 +662,32 @@ async function chooseFor(actor, scenario) {
     return choices.find((c) => c.action === wanted);
   }
   mainPanel.highlight(true);
-  setStatus(`What does ${actor.name} do?  Point and pull the trigger, or press 1, 2, 3.`);
+  setStatus(`YOU ARE ${actor.name.toUpperCase()} — THE MONSTER IS ON YOU.  Choose what ${actor.name} does: point and pull, or press 1, 2, 3.`);
   const freeze = setTimeout(() => main.hold(true), SETTLE);
   try { return await offerChoices(choices); }
   finally { clearTimeout(freeze); main.hold(false); mainPanel.highlight(false); }
 }
 
+/** A bad response gives the other character one JSON-defined reaction and prompt. */
+function reactionTo(response, actor, reactor) {
+  if (!interactionAudio) return null;
+  return reactionForResponse(interactionAudio, response, { actor: actor.name, reactor: reactor.name });
+}
+
+function playReaction(reaction, reactor) {
+  if (!reaction?.sound) return;
+  if (reaction.sound.characterVoice) {
+    voices.speak(reactor, reaction.prompt).catch((error) => console.warn("Reaction voice failed:", error.message));
+  } else {
+    sfx.playReaction(reaction).catch((error) => console.warn("Reaction SFX failed:", error.message));
+  }
+}
+
 function outcomeCaption(actor, recipient, action, types) {
   if (action === "NEGATIVE") {
-    return types.includes("MONSTER_SPAWNED")
-      ? `A new monster grows on ${recipient.name}'s shoulder. ${actor.name} keeps theirs. The story follows ${recipient.name} now.`
-      : `${recipient.name}'s monster swells back to full size. The story follows ${recipient.name} now.`;
+    return `${recipient.name}'s day still goes on. This moment follows them.`;
   }
-  if (types.includes("MONSTER_REMOVED")) return `Kind twice. ${actor.name}'s monster is gone.`;
-  return `${actor.name}'s monster shrinks. It will take one more.`;
+  return `${actor.name} lets the moment land differently. Their day continues.`;
 }
 
 /** After an arc ends, the main window steps into another carrier's story: family first, then anyone. */
@@ -653,37 +696,59 @@ function nextCarrier() {
   return ["child", "mom", "dad"].map((role) => carriers.find((c) => c.role === role)).find(Boolean) ?? carriers[0] ?? null;
 }
 
-// Scene 1: an ordinary morning. No interaction, just how a Monster spreads.
+// Scene 1: Mom receives the first Monster, silently weighs the impulse, then makes the first choice.
 async function sceneKitchen() {
-  const [mom, dad, child] = family = [world.add(EPISODE.mom), world.add(EPISODE.dad), world.add(EPISODE.child)];
+  const [mom, dad, child] = family = [
+    addCharacter(canonicalCharacter(EPISODE.mom)),
+    addCharacter(canonicalCharacter(EPISODE.dad)),
+    addCharacter(canonicalCharacter(EPISODE.child)),
+  ];
   world.seed(mom.characterId);
   mainPanel.setTexture(main.texture);
   engagedId = otherId = dad.characterId;
   refresh();
   setStatus("Watch.");
-  setCaption("The dishwasher is full of last night's dishes. Nobody started it.", "Mom is already tired. Something small and dark is sitting on her shoulder.");
+  setCaption("The dishwasher is full of last night's dishes. Nobody started it.", "Something settles on Mom's shoulder. She stops before speaking.");
   await main.show(EPISODE.kitchenPrompt(mom, dad), { cut: true });
-  await sleep(HOLD);
+  await sleep(CONTEMPLATE);
 
-  setCaption("MOM: “Why didn't you start the dishwasher last night?”", "DAD: “Sorry. I forgot.”  He cleaned the whole kitchen last night. He doesn't say so.");
-  otherId = mom.characterId; // the main window now follows Dad; Mom is the one he faces
-  heldBack.add(mom.characterId); // her side window waits until we have seen the scene break up
-  const types = world.resolve(mom.characterId, dad.characterId, "NEGATIVE", "the dishwasher").map((e) => e.type);
-  await main.show(outcomePrompt(mom, dad, EPISODE.kitchenPlace, "NEGATIVE", types, "turns from the open dishwasher and asks a sharp, tired question"));
+  setCaption("Mom is tired and the work is still there.", "She decides whether that weight stops with her or reaches Dad.");
+  const picked = await chooseFor(mom, EPISODE.kitchenResponse);
+  if (!running || !picked) return null;
+  const reaction = reactionTo(picked.action, mom, dad);
+  const predictedTypes = predictTypes(mom, dad, picked.action);
+  const momLine = quotedSpeech(picked.label);
+  if (momLine) voices.speak(mom, momLine).catch((error) => console.warn("Mom voice failed:", error.message));
+  playReaction(reaction, dad);
+  setStatus("");
+  setCaption(afterFor(picked, mom, dad), reaction?.prompt ?? "Watch what the response does to both of them.");
+  const reactionBeat = reaction?.prompt ? `${picked.beat}. Then ${reaction.prompt}` : picked.beat;
+  if (picked.action === "NEGATIVE") heldBack.add(mom.characterId);
+  await main.show(outcomePrompt(mom, dad, EPISODE.kitchenPlace, picked.action, predictedTypes, reactionBeat));
   await sleep(HOLD);
+  world.resolve(mom.characterId, dad.characterId, picked.action, picked.label);
+  refresh();
 
-  setCaption("A new monster grows on Dad's shoulder. Mom keeps hers. Now there are two.", "Dad turns away without another word.");
+  sideLoop();
+  if (picked.action !== "NEGATIVE") {
+    otherId = null;
+    setCaption("Mom chose not to pass the weight on.", "Her day continues, and the creature is smaller.");
+    return world.main ? planEncounter(world.main) : null;
+  }
+
+  setCaption(`${dad.name} leaves carrying what landed.`, "Mom remains tense. Anger did not make her feel better.");
   await main.show(EPISODE.dadLeavesPrompt(mom, dad));
   await sleep(HOLD * 0.7);
-  setCaption("The story follows Dad.", "Mom's morning goes on without us.");
   heldBack.delete(mom.characterId);
-  refresh(); // now her Living Window appears and drifts out to the side
+  refresh();
   showSide(mom, EPISODE.momAlonePrompt(mom));
-  sideLoop();
   await sleep(EXIT);
   otherId = null;
-  engagedId = child.characterId;
-  return { actorId: dad.characterId, recipient: child, scenario: EPISODE.hallway }; // Scene 2 is fixed
+  if (world.main === dad) {
+    engagedId = child.characterId;
+    return { actorId: dad.characterId, recipient: child, scenario: EPISODE.hallway };
+  }
+  return world.main ? planEncounter(world.main) : null;
 }
 
 // Scenes 2 and 3: the hallway, then the day. The player chooses for whoever the main window follows.
@@ -698,8 +763,8 @@ async function theDay(firstPlan) {
       world.promote(actor.characterId);
       refresh();
       setStatus("");
-      setCaption(`The ripple is still moving. ${actor.name} is carrying a monster. Step into ${actor.name}'s day.`,
-        actor.monsterState === SMALL ? `${actor.name} has already been kind once. One more clears it.` : "");
+      setCaption(`The ripple is still moving. Step into ${actor.name}'s day.`,
+        "Another ordinary moment is already waiting.");
       await main.show(soloPrompt(actor), { cut: true });
       planned = planEncounter(actor);
       await sleep(HOLD * 0.7);
@@ -713,22 +778,33 @@ async function theDay(firstPlan) {
     engagedId = otherId = recipient.characterId;
     refresh();
     actor.currentLocation = scenario.place;
-    setCaption(captionFor(scenario, actor, recipient));
+    const encounterCaption = captionFor(scenario, actor, recipient);
+    setCaption(encounterCaption);
+    const recipientLine = quotedSpeech(encounterCaption);
+    if (recipientLine) voices.speak(recipient, recipientLine).catch((error) => console.warn("Voice failed:", error.message));
     // A new place and a new person: start a fresh run. Morphing the running picture
     // keeps the previous scene's people in frame.
     await main.show(encounterPrompt(actor, recipient, scenario), { cut: true });
+    await sleep(CONTEMPLATE);
 
     const picked = await chooseFor(actor, scenario);
     if (!running || !picked) return;
     const leaves = picked.action === "NEGATIVE";
     if (leaves) { otherId = actor.characterId; heldBack.add(actor.characterId); }
-    const types = world.resolve(actor.characterId, recipient.characterId, picked.action, captionFor(scenario, actor, recipient)).map((e) => e.type);
+    const reaction = reactionTo(picked.action, actor, recipient);
+    const predictedTypes = predictTypes(actor, recipient, picked.action);
     setStatus("");
-    setCaption(afterFor(picked, actor, recipient), outcomeCaption(actor, recipient, picked.action, types));
-    await main.show(outcomePrompt(actor, recipient, scenario.place, picked.action, types, picked.beat));
+    setCaption(afterFor(picked, actor, recipient), reaction?.prompt ?? "Watch what the response does to both of them.");
+    const actorLine = quotedSpeech(picked.label);
+    if (actorLine) voices.speak(actor, actorLine).catch((error) => console.warn("Voice failed:", error.message));
+    playReaction(reaction, recipient);
+    const reactionBeat = reaction?.prompt ? `${picked.beat}. Then ${reaction.prompt}` : picked.beat;
+    await main.show(outcomePrompt(actor, recipient, scenario.place, picked.action, predictedTypes, reactionBeat));
+    await sleep(HOLD);
+    world.resolve(actor.characterId, recipient.characterId, picked.action, captionFor(scenario, actor, recipient));
+    refresh();
     engagedId = null;
     planned = world.main && turn + 1 < TURNS ? planEncounter(world.main) : Promise.resolve(null);
-    await sleep(HOLD);
     if (leaves) {
       // Watch them go before their own Living Window appears.
       setCaption(`${actor.name} walks away.`, `${actor.name}'s day goes on without us.`);
@@ -758,10 +834,14 @@ async function sceneDinner() {
   await sleep(HOLD);
 
   setCaption("MIA: “Can you pass me the water?”   “Here you go.”", "Nobody mentions the dishwasher. In the background, it is running quietly.");
+  voices.speakSequence([
+    { character: child, text: "Can you pass me the water?" },
+    { character: mom, text: "Here you go." },
+  ]).catch((error) => console.warn("Dinner voices failed:", error.message));
   await sleep(HOLD);
 
   // The camera pulls back: the kitchen becomes one Living Window among the others.
-  setCaption("Everyone we met is living their own evening.", "Some still carry monsters. Some carry smaller ones. Some have none.");
+  setCaption("Everyone we met is living their own evening.", "Each of them takes the day home.");
   const pullMs = FAST ? 300 : 9000;
   const started = performance.now();
   const pull = setInterval(() => {
@@ -816,11 +896,26 @@ async function run() {
 
 async function begin() {
   if (running) return;
+  voices.unlock(); // The Begin click satisfies browser and headset autoplay policies.
+  sfx.unlock();
   running = true;
+  $("launch").hidden = true;
   $("begin").disabled = true;
   try {
     setStatus("Checking the server");
-    health = await (await fetch("/health")).json();
+    [health, characterManifest, interactionAudio] = await Promise.all([
+      fetch("/health").then((response) => response.json()),
+      fetch("/characters").then((response) => {
+        if (!response.ok) throw new Error("Character and Satie voice manifest is unavailable");
+        return response.json();
+      }),
+      fetch("./interaction-audio.json").then((response) => {
+        if (!response.ok) throw new Error("Action and sound manifest is unavailable");
+        return response.json();
+      }),
+    ]);
+    voices.configure(characterManifest);
+    sfx.beginStory(`episode-01-${Date.now()}`, interactionAudio.storyStart).catch((error) => console.warn("Story sting failed:", error.message));
     const lost = () => { if (running) stop("The video session ended."); };
     main = new LiveStream("Main story", { mock: MOCK, onStatus: (s) => setStatus(`Main video: ${s}`), onLost: lost });
     setStatus("Connecting the video");
@@ -835,6 +930,8 @@ async function begin() {
 
 async function stop(message = "Stopped.") {
   running = false;
+  voices.stop();
+  sfx.stop();
   if (pendingChoice) { pendingChoice.resolve(null); pendingChoice = null; }
   for (const button of choiceButtons) button.group.visible = false;
   for (const entry of sidePanels.values()) entry.connected.then(() => entry.stream?.close());
@@ -863,7 +960,7 @@ if (xrModes.includes(true)) {
     : "XR needs http://localhost or https. On Quest: adb reverse tcp:8787 tcp:8787, then open localhost:8787/ripple/";
 }
 
-setCaption("The Ripple. Episode 01: The Dishwasher.", "Press Begin, then enter XR.");
+setCaption("The Ripple. Episode 01: The Dishwasher.", "Enter when you're ready.");
 drawHud();
 mainPanel.label("The Ripple", MOCK ? "mock video" : "It was never really about the dishwasher.");
 renderer.setAnimationLoop((time) => {

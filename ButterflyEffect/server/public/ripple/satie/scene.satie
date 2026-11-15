@@ -1,0 +1,94 @@
+# The Ripple — Episode 01 kitchen MVP. Composed from Satie Library "Playlist 1".
+world The Ripple kitchen scene
+  seed 1
+  size 20
+  terrain relief 0 roughness 0
+  ground tile weight 1
+  fixture camera Snap camera/listener size 1x2.1x1 material unknown at 0,0
+  fixture mom Mom size 1x0.5x1 material unknown at -1,-2
+  fixture dad Dad size 1x0.5x1 material unknown at 1,-2
+  fixture dishwasher Dishwasher size 1x0.5x1 material stainless steel at -1.5,-3
+  fixture dishes Dirty dishes size 1x1.3x1 material ceramic at -1.3,-3
+  weather rain 0 wind 0.2 fog 0
+  time 07:30 season summer temp 18
+
+room kitchen
+  size 5 3 5
+  place 0 1.5 0
+  floor tile
+  ceiling drywall
+  walls paint and cabinets
+  rt60 0.35
+
+# The host repeats character clips only for the active dialogue turn and prevents overlap.
+on dialogue_dad brief-excited-baseball
+    source_id dad_voice
+    zone dad_speaking
+    at dad
+    spl 64
+    cooldown 0.1
+    distance_model free_field_v1
+    in kitchen
+
+on dialogue_mom warm-adult-voice
+    source_id mom_voice
+    zone mom_speaking
+    at mom
+    spl 64
+    cooldown 0.1
+    distance_model free_field_v1
+    in kitchen
+
+# MVP placeholder: a gated hand clap, not a realistic slap recording.
+on reaction hand-clap-8
+    source_id mom_slap_placeholder
+    zone action_slap
+    at mom
+    spl 78
+    duration 0.12
+    fade_out 0.015
+    quiet action_index 1.5
+    cooldown 0.2
+    distance_model free_field_v1
+    in kitchen
+
+on story_start grand-piano-g6
+    source_id story_start_sting
+    place ahead near level
+    move static
+    spl 65
+    duration 1.1
+    fade_out 0.15
+    distance_model free_field_v1
+    in kitchen
+
+# The host chooses action_index. Frown and none deliberately stay silent.
+on reaction warm-adult-voice
+    source_id mom_reaction_yell
+    zone action_yell
+    at mom
+    spl 72
+    cooldown 0.2
+    distance_model free_field_v1
+    in kitchen
+
+on reaction warm-adult-voice
+    source_id mom_reaction_bark
+    zone action_bark
+    at mom
+    spl 72
+    cooldown 0.2
+    distance_model free_field_v1
+    in kitchen
+
+# Future object actions bind to this semantic event. The MVP has no suitable object SFX.
+on object_interaction hand-clap-8
+    source_id object_interaction_silent
+    zone action_none
+    mute
+    at dishes
+    spl 60
+    volume 0
+    cooldown 0.2
+    distance_model free_field_v1
+    in kitchen

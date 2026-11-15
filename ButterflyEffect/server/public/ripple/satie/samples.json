@@ -1,0 +1,66 @@
+{
+  "Audio/brief-excited-baseball": {
+    "url": "https://nfcuwfkfctfpdrwkgvtm.supabase.co/storage/v1/object/public/community-samples/bb79f48f-a6a9-4282-a616-2e98b0a90832/game-takes/9b1cc529-a061-4f3e-9de7-360cdf6209ed.mp3",
+    "sampleId": "9b1cc529-a061-4f3e-9de7-360cdf6209ed",
+    "reused": true,
+    "prompt": "brief-excited-baseball",
+    "source": "library",
+    "name": "brief-excited-baseball",
+    "license": "Generated (ElevenLabs, via Satie)",
+    "licence": "Generated (ElevenLabs, via Satie)",
+    "qa": {
+      "heard": "A male voice shouts an excited single-word call with a tinny, compact speaker character.",
+      "verdict": "regen",
+      "reason": "recording carries speech"
+    },
+    "sha256": "ffe8341b74adc6433f468d214ac0f1787e7a3bb0ddd121abe3a865903e8d76cf"
+  },
+  "Audio/warm-adult-voice": {
+    "url": "https://nfcuwfkfctfpdrwkgvtm.supabase.co/storage/v1/object/public/community-samples/bb79f48f-a6a9-4282-a616-2e98b0a90832/game-takes/ccf60b1d-8e5e-4400-b510-8dc6d4603c8e.mp3",
+    "sampleId": "ccf60b1d-8e5e-4400-b510-8dc6d4603c8e",
+    "reused": true,
+    "prompt": "warm-adult-voice",
+    "source": "library",
+    "name": "warm-adult-voice",
+    "license": "Generated (ElevenLabs, via Satie)",
+    "licence": "Generated (ElevenLabs, via Satie)",
+    "qa": {
+      "heard": "A male voice delivers a single brief conversational sentence about weekend plans in a relaxed, clear tone.",
+      "verdict": "pass",
+      "reason": "recording carries speech"
+    },
+    "sha256": "bbe5102b3dccd2b3d810ab93feb886ca7196b258f5b3cebb6a9515b66b80d49b"
+  },
+  "Audio/hand-clap-8": {
+    "url": "https://nfcuwfkfctfpdrwkgvtm.supabase.co/storage/v1/object/public/community-samples/bb79f48f-a6a9-4282-a616-2e98b0a90832/game-takes/ac720586-92b3-4596-b8bc-a971882ff59d.mp3",
+    "sampleId": "ac720586-92b3-4596-b8bc-a971882ff59d",
+    "reused": true,
+    "prompt": "hand-clap-8",
+    "source": "library",
+    "name": "hand-clap-8",
+    "license": "Generated (ElevenLabs, via Satie)",
+    "licence": "Generated (ElevenLabs, via Satie)",
+    "qa": {
+      "heard": "A single, clear hand clap with a quick decay and dry room acoustics.",
+      "verdict": "pass"
+    },
+    "sha256": "ac3f99ade51fe8ec281ee2f5b9ce36ab2ad03a72819495c00af85dcabb3144d2"
+  },
+  "Audio/grand-piano-g6": {
+    "url": "https://nfcuwfkfctfpdrwkgvtm.supabase.co/storage/v1/object/public/community-samples/bb79f48f-a6a9-4282-a616-2e98b0a90832/game-takes/8ea5f92d-cbc7-4521-8e48-94b413efb4db",
+    "sampleId": "8ea5f92d-cbc7-4521-8e48-94b413efb4db",
+    "reused": true,
+    "prompt": "grand-piano-g6",
+    "source": "library",
+    "name": "grand-piano-g6",
+    "license": "CC0",
+    "attribution": "Versilian Community Sample Library",
+    "licence": "CC0",
+    "qa": {
+      "heard": "A single, warm G6 grand piano note with a sustained, natural decay.",
+      "verdict": "pass",
+      "reason": "recording carries music"
+    },
+    "sha256": "ddbcc18a9ae2cf707fddfc8b193e01bd4c90f526d4aeadd13f60fdd05f9303cd"
+  }
+}
