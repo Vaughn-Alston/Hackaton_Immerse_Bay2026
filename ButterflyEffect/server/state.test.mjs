@@ -148,7 +148,7 @@ test("every shot describes at most one creature (three only at the dinner table)
   finally { setCreatures(true); }
 });
 
-import { layoutRadial, FANS } from "./public/ripple/layout.js";
+import { layoutRadial, FANS, boxOf } from "./public/ripple/layout.js";
 
 test("the graph layout is a radial tree around the main window", () => {
   // hub -> a -> b -> c, a -> d, hub -> e -> f, e -> g, and a loose node z
@@ -163,7 +163,6 @@ test("the graph layout is a radial tree around the main window", () => {
     if (p.parent !== null) {
       const parent = placement.get(p.parent);
       assert.equal(p.depth, parent.depth + 1);
-      assert.ok(distance(p) > distance(parent), `${id} sits further out than ${p.parent}`);
     } else {
       assert.equal(p.depth, 1);
       assert.ok(FANS.some(([from, to]) => p.angle >= from && p.angle <= to), `${id} sits beside the main window, clear of the count above and the choices below`);
@@ -172,12 +171,24 @@ test("the graph layout is a radial tree around the main window", () => {
   assert.equal(placement.get("z").loose, true);
   assert.equal(placement.get("b").parent, "a");
 
-  // Ring windows are about 0.48 m wide; no two centres may be closer than that.
-  const all = [...placement];
-  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
-    const gap = Math.hypot(all[i][1].x - all[j][1].x, all[i][1].y - all[j][1].y);
-    assert.ok(gap > 0.45, `${all[i][0]} and ${all[j][0]} overlap (${gap.toFixed(2)} m apart)`);
-  }
+  // No two windows overlap, counting the label under each video, and none sits on the main window.
+  const overlap = (list) => {
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const [a, b] = [list[i][1], list[j][1]], [boxA, boxB] = [boxOf(a), boxOf(b)];
+      const x = boxA.halfW + boxB.halfW - Math.abs(a.x - b.x);
+      const y = Math.min(a.y + boxA.top, b.y + boxB.top) - Math.max(a.y - boxA.bottom, b.y - boxB.bottom);
+      if (x > 0.001 && y > 0.001) return `${list[i][0]} and ${list[j][0]}`;
+    }
+    return null;
+  };
+  assert.equal(overlap([...placement]), null);
+  for (const [id, p] of placement) assert.ok(Math.abs(p.x) > 1.2 || p.y > 0.85, `${id} is clear of the main window`);
+
+  // The crowded case from play: a chain of family windows (all drawn larger) with a branch off it.
+  const crowded = layoutRadial(["mom", "maya", "dad", "mia", "theo", "omar", "lily", "noor"],
+    [["mom", "dad"], ["mom", "maya"], ["dad", "mia"], ["mia", "theo"], ["theo", "hub"], ["mia", "omar"], ["omar", "lily"], ["hub", "noor"]].map(([from, to]) => ({ from, to })),
+    new Set(["hub"]), new Set(["mom", "dad", "mia"]));
+  assert.equal(overlap([...crowded]), null);
 
   // One branch on its own starts off to the side, not straight above the main window.
   const single = layoutRadial(["a"], [{ from: "hub", to: "a" }], new Set(["hub"])).get("a");

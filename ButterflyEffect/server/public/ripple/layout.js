@@ -29,12 +29,13 @@ const STRETCH_X = 1.1, STRETCH_Y = 0.6, LIFT = 0.05; // the main window is wide,
  * nodeIds: characters with a side window, in the order their windows appeared.
  * links:   [{ from, to }] who gave whom a Monster.
  * rootIds: Set of characters shown in the main window (the centre of the graph).
+ * larger:  Set of characters whose windows are drawn bigger (the family).
  *
  * Returns Map id -> { x, y, angle, depth, scale, parent, loose }. x and y are metres right of
  * and above the centre of the main window, `parent` is the id one step closer to the centre
  * (null when that is the main window), and `loose` marks a window with no visible link.
  */
-export function layoutRadial(nodeIds, links, rootIds) {
+export function layoutRadial(nodeIds, links, rootIds, larger = new Set()) {
   const ROOT = null;
   const ids = new Set(nodeIds);
   const key = (id) => (rootIds.has(id) ? ROOT : id);
@@ -94,7 +95,7 @@ export function layoutRadial(nodeIds, links, rootIds) {
         x: Math.cos(radians) * ring * STRETCH_X,
         y: Math.sin(radians) * ring * STRETCH_Y + LIFT,
         angle, depth,
-        scale: SIZE[Math.min(depth, SIZE.length - 1)],
+        scale: SIZE[Math.min(depth, SIZE.length - 1)] * (larger.has(kid) ? FEATURED : 1),
         parent: parent.get(kid),
         loose: loose.has(kid),
       });
@@ -107,5 +108,54 @@ export function layoutRadial(nodeIds, links, rootIds) {
   // A single branch would land straight above the main window; start it off to the side instead.
   if (children.get(ROOT).length === 1) spread(ROOT, 1, -20, 50);
   else spread(ROOT, 1, 0, FAN_TOTAL, fanAngle);
+  separate([...placement.values()]);
   return placement;
+}
+
+// How much room a window takes, as fractions of a full side window's width (0.78 m): the video,
+// plus the name label under it and a little air around the card.
+export const FEATURED = 1.15;
+const FULL_WIDTH = 0.78, GAP = 0.09;
+export const boxOf = (place) => {
+  const width = FULL_WIDTH * place.scale;
+  return { halfW: width / 2 + GAP, top: width * 0.33 + GAP, bottom: width * 0.56 + GAP };
+};
+// The main window with its caption and the choices under it, and the Monster count above it.
+const MAIN = { halfW: 1.2, top: 0.85, bottom: 1.62 };
+
+/**
+ * Nudges windows apart until none overlap each other or the main window. The radial pass puts
+ * everyone in roughly the right place; this only fixes the collisions, so the shape survives.
+ */
+function separate(places) {
+  for (let pass = 0; pass < 80; pass++) {
+    let moved = false;
+    for (const place of places) {
+      // Keep clear of the main window: slide out sideways, whichever side it is already on.
+      const box = boxOf(place);
+      const dx = MAIN.halfW + box.halfW - Math.abs(place.x);
+      const overlapsMain = dx > 0 && place.y - box.bottom < MAIN.top && place.y + box.top > -MAIN.bottom;
+      if (overlapsMain) { place.x += (place.x >= 0 ? 1 : -1) * dx; moved = true; }
+    }
+    for (let i = 0; i < places.length; i++) for (let j = i + 1; j < places.length; j++) {
+      const a = places[i], b = places[j], boxA = boxOf(a), boxB = boxOf(b);
+      const overlapX = boxA.halfW + boxB.halfW - Math.abs(a.x - b.x);
+      // Vertical extents are uneven (the label hangs below the video), so compare edges.
+      const overlapY = Math.min(a.y + boxA.top, b.y + boxB.top) - Math.max(a.y - boxA.bottom, b.y - boxB.bottom);
+      if (overlapX <= 0 || overlapY <= 0) continue;
+      moved = true;
+      // Push along whichever direction needs the smaller move. The one further out moves more.
+      const shareA = a.depth > b.depth ? 0.75 : a.depth < b.depth ? 0.25 : 0.5;
+      if (overlapX < overlapY) {
+        const direction = a.x >= b.x ? 1 : -1;
+        a.x += direction * overlapX * shareA;
+        b.x -= direction * overlapX * (1 - shareA);
+      } else {
+        const direction = a.y >= b.y ? 1 : -1;
+        a.y += direction * overlapY * shareA;
+        b.y -= direction * overlapY * (1 - shareA);
+      }
+    }
+    if (!moved) break;
+  }
 }

@@ -521,7 +521,7 @@ function hubIds() {
  * window appears or leaves, a link is added, or the main window follows someone new.
  */
 function arrangeWindows() {
-  const placement = layoutRadial([...sidePanels.keys()], links, hubIds());
+  const placement = layoutRadial([...sidePanels.keys()], links, hubIds(), new Set(family.map((c) => c.characterId)));
   for (const [id, entry] of sidePanels) {
     const place = placement.get(id);
     // The layout is flat (metres right of and above the main window). Wrap it around the viewer,
@@ -532,7 +532,7 @@ function arrangeWindows() {
       Math.sin(pitch) * VIEW_DISTANCE,
       VIEW_DISTANCE - Math.cos(yaw) * Math.cos(pitch) * VIEW_DISTANCE,
     );
-    entry.panel.glideTo(position, -yaw, pitch, place.scale * (entry.panel.featured ? 1.15 : 1));
+    entry.panel.glideTo(position, -yaw, pitch, place.scale); // the layout already made family windows larger
   }
 }
 
