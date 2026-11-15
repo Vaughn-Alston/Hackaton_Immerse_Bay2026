@@ -1,0 +1,94 @@
+
+{
+  
+  "defaultPerspectiveId": "firstPersonFov",
+  "perspectives": {
+
+
+
+    "firstPersonFov": {
+      "id": "firstPersonFov",
+      "label": "First-person FOV",
+      "description": "The default immersive viewpoint for the continuous XR story.",
+      "camera": {
+        "motion": "POV",
+        "angle": "eye-level",
+        "framing": "wide shot",
+        "depthOfField": "deep depth of field"
+      },
+      "transitionPrompt": "The viewpoint smoothly returns to a first-person eye-level POV with a wide field of view.",
+      "correctionPrompt": "Restore the camera to the same first-person eye-level POV and wide field of view, continuing the same uninterrupted take.",
+      "xr": {
+        "mode": "first-person",
+        "fieldOfViewDegrees": 90,
+        "headLocked": true
+      }
+    }
+    
+    
+    
+    ,
+    "closeUp": {
+      "id": "closeUp",
+      "label": "Close-up",
+      "description": "An intimate view emphasizing a face or small object.",
+      "camera": {
+        "motion": "zoom",
+        "angle": "eye-level",
+        "framing": "close-up",
+        "depthOfField": "shallow depth of field"
+      },
+      "transitionPrompt": "The camera slowly zooms into an eye-level close-up with shallow depth of field.",
+      "correctionPrompt": "Restore the camera to the same eye-level close-up with shallow depth of field, continuing the same uninterrupted take.",
+      "xr": {
+        "mode": "cinematic",
+        "fieldOfViewDegrees": 45,
+        "headLocked": false
+      }
+    },
+
+
+    "wideEstablishing": {
+      "id": "wideEstablishing",
+      "label": "Wide establishing",
+      "description": "A broad view emphasizing the subject's relationship to the environment.",
+      "camera": {
+        "motion": "pan",
+        "angle": "eye-level",
+        "framing": "wide shot",
+        "depthOfField": "deep depth of field"
+      },
+      "transitionPrompt": "The camera slowly pans into an eye-level wide shot that reveals the surrounding environment in deep focus.",
+      "correctionPrompt": "Restore the camera to the same eye-level wide shot with deep depth of field, continuing the same uninterrupted take.",
+      "xr": {
+        "mode": "cinematic",
+        "fieldOfViewDegrees": 75,
+        "headLocked": false
+      }
+    }
+    
+    
+    ,
+    "overhead": {
+      "id": "overhead",
+      "label": "Overhead",
+      "description": "A top-down view emphasizing movement and spatial layout.",
+      "camera": {
+        "motion": "static",
+        "angle": "overhead",
+        "framing": "medium wide",
+        "depthOfField": "deep depth of field"
+      },
+      "transitionPrompt": "The camera rises smoothly into a static overhead medium-wide view with deep depth of field.",
+      "correctionPrompt": "Restore the camera to the same static overhead medium-wide view with deep depth of field, continuing the same uninterrupted take.",
+      "xr": {
+        "mode": "cinematic",
+        "fieldOfViewDegrees": 70,
+        "headLocked": false
+      }
+    }
+
+
+
+  }
+}

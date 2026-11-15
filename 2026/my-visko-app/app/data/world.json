@@ -1,0 +1,136 @@
+{
+  "version": "1.0",
+  "visualPolicy": {
+    "style": "photorealistic",
+    "maximumCharacters": 3,
+    "maximumInitialPromptWords": 100,
+    "transitionDelayMs": 3000
+  },
+  "characters": {
+    "viewer": {
+      "id": "viewer",
+      "name": "Viewer",
+      "role": "firstPersonPlayer",
+      "visualIdentity": {
+        "visibleFeatures": "a right hand wearing a dark brown fingerless leather glove",
+        "promptReference": "the viewer's right hand wearing the same dark brown fingerless leather glove"
+      }
+    },
+    "elias": {
+      "id": "elias",
+      "name": "Elias",
+      "role": "forestGuide",
+      "visualIdentity": {
+        "ageRange": "early thirties",
+        "hair": "short tightly curled black hair",
+        "skinTone": "deep brown skin",
+        "clothing": "a moss-green canvas field jacket over a cream shirt",
+        "distinctiveFeature": "a narrow copper compass hanging from his neck",
+        "promptReference": "Elias, a man in his early thirties with deep brown skin and short tightly curled black hair, wearing the same moss-green canvas field jacket, cream shirt, and narrow copper compass"
+      }
+    }
+  },
+  "relationships": {
+    "viewer-elias": {
+      "id": "viewer-elias",
+      "characterIds": ["viewer", "elias"],
+      "type": "new allies",
+      "initialTrust": 0.35
+    }
+  },
+  "locations": {
+    "cedar-clearing-a": {
+      "id": "cedar-clearing-a",
+      "realityId": "reality-a",
+      "visualIdentity": {
+        "terrain": "a moss-covered forest clearing",
+        "landmarks": [
+          "a split cedar tree on the left",
+          "a shallow stream behind Elias",
+          "three waist-high dark basalt rocks on the right"
+        ],
+        "lighting": "soft afternoon light filtered through cedar branches",
+        "promptReference": "a moss-covered forest clearing with a split cedar tree on the left, a shallow stream behind Elias, and three waist-high dark basalt rocks on the right, lit by soft afternoon light through the cedar branches"
+      }
+    }
+  },
+  "humanInteractions": {
+    "forestGreeting": {
+      "id": "forestGreeting",
+      "label": "Meet Elias in the forest",
+      "locationId": "cedar-clearing-a",
+      "relationshipId": "viewer-elias",
+      "participantIds": ["viewer", "elias"],
+      "initialStage": "observing",
+      "openingAction": "stands several steps ahead facing the viewer with both hands relaxed at his sides",
+      "actions": [
+        {
+          "id": "approachElias",
+          "label": "Walk toward Elias",
+          "fromStage": "observing",
+          "toStage": "nearby",
+          "prompt": "The first-person viewer walks slowly toward Elias and stops at a comfortable conversational distance."
+        },
+        {
+          "id": "waveToElias",
+          "label": "Wave to Elias",
+          "fromStage": "nearby",
+          "toStage": "greeted",
+          "prompt": "The viewer's right hand in the dark brown fingerless leather glove rises into frame and gives Elias one slow wave."
+        },
+        {
+          "id": "eliasWavesBack",
+          "label": "Let Elias respond",
+          "fromStage": "greeted",
+          "toStage": "acknowledged",
+          "prompt": "Elias smiles warmly and raises his right hand to return the wave."
+        },
+        {
+          "id": "offerHandshake",
+          "label": "Offer a handshake",
+          "fromStage": "acknowledged",
+          "toStage": "handOffered",
+          "prompt": "The viewer extends the gloved right hand toward Elias for a handshake."
+        },
+        {
+          "id": "eliasHandshakes",
+          "label": "Complete handshake",
+          "fromStage": "handOffered",
+          "toStage": "complete",
+          "prompt": "Elias reaches forward, gently grasps the viewer's extended hand, and completes one natural handshake."
+        }
+      ]
+    }
+  },
+  "defaultTestObjectId": "rock-001",
+  "objectTypes": {
+    "breakableRock": {
+      "id": "breakableRock",
+      "label": "Breakable basalt rock",
+      "visualIdentity": {
+        "material": "dark gray basalt",
+        "shape": "a low, rounded waist-high boulder",
+        "surface": "a rough surface crossed by three pale mineral veins",
+        "promptReference": "the same waist-high dark gray basalt rock with a rough rounded surface and three pale mineral veins"
+      },
+      "gameplay": {
+        "maxHealth": 3,
+        "damagePerHit": 1,
+        "rewardValue": 1
+      },
+      "destruction": {
+        "fragmentCount": 10,
+        "blastRadiusMeters": 2.5,
+        "allowedDirections": ["left", "right", "down"],
+        "blockedDirections": ["up"]
+      }
+    }
+  },
+  "instances": {
+    "rock-001": {
+      "id": "rock-001",
+      "typeId": "breakableRock",
+      "position": { "x": 0, "y": 0, "z": -2 }
+    }
+  }
+}

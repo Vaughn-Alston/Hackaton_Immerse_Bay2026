@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ButterflyEffect check</title>
+<style>
+  body { margin: 0; background: #0c0c0e; color: #e8e6e3; font: 16px/1.45 system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 16px; }
+  video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; display: block; }
+  #caption { min-height: 3em; margin: 14px 0 10px; font-size: 18px; }
+  #choices { display: grid; gap: 8px; }
+  button { font: inherit; text-align: left; padding: 12px 14px; border-radius: 8px; border: 1px solid #3a3a40;
+           background: #18181c; color: inherit; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: #c2452d; }
+  button:disabled { opacity: .45; cursor: default; }
+  #bar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  #status { color: #9a9892; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <div id="bar">
+    <button id="begin">Begin</button>
+    <button id="stop" disabled>Stop</button>
+    <span id="status">idle</span>
+  </div>
+  <video id="video" autoplay muted playsinline></video>
+  <div id="caption"></div>
+  <div id="choices"></div>
+</main>
+<script type="module">
+import { Reactor } from "https://cdn.jsdelivr.net/npm/@reactor-team/js-sdk@3.4.0/+esm";
+
+const $ = (id) => document.getElementById(id);
+const say = (text) => { $("status").textContent = text; };
+
+let reactor, story, nodes, started = false, runEnded = false, timer;
+
+const fill = (node) => node.prompt.replaceAll("{monster}", story.monster).replaceAll("{style}", story.style);
+
+// Visko Orbis: set_prompt morphs the running picture into the new description.
+// A new scene ("cut") is a fresh run instead: reset, set the prompt, start.
+async function restart(prompt) {
+  if (started) await reactor.sendCommand("reset", {});
+  await reactor.sendCommand("set_audio_enabled", { audio_enabled: false }); // video only
+  await reactor.sendCommand("set_prompt", { prompt });
+  await reactor.sendCommand("start", {});
+  started = true; runEnded = false;
+}
+
+async function play(id) {
+  clearTimeout(timer);
+  const node = nodes[id];
+  const prompt = fill(node);
+  $("caption").textContent = node.caption;
+  $("choices").replaceChildren();
+
+  if (!started || runEnded || node.transition === "cut") await restart(prompt);
+  else {
+    // A refused command resolves undefined; fall back to a fresh run.
+    const reply = await reactor.sendCommand("set_prompt", { prompt });
+    if (reply === undefined) await restart(prompt);
+  }
+
+  if (node.end) { timer = setTimeout(stop, 25000); return; }
+  if (node.choices?.length) {
+    node.choices.forEach((choice, i) => {
+      const button = document.createElement("button");
+      button.textContent = `${"ABC"[i]}.  ${choice.label}`;
+      button.onclick = () => play(choice.next);
+      $("choices").append(button);
+    });
+  } else if (node.next) {
+    timer = setTimeout(() => play(node.next), (node.holdSeconds ?? 12) * 1000);
+  }
+}
+
+async function begin() {
+  $("begin").disabled = true;
+  try {
+    say("loading story");
+    story = await (await fetch("/story")).json();
+    nodes = Object.fromEntries(story.nodes.map((n) => [n.id, n]));
+
+    say("requesting token");
+    const session = await (await fetch("/session", { method: "POST" })).json();
+    if (!session.token) throw new Error(session.error + (session.detail ? " " + session.detail : ""));
+
+    reactor = new Reactor({ modelName: session.model });
+    reactor.on("trackReceived", (name, _track, stream) => {
+      if (name === "main_video") { $("video").srcObject = stream; $("video").play(); }
+    });
+    reactor.on("message", (message) => {
+      if (message.type === "generation_complete") runEnded = true;
+      if (message.type === "chunk_complete") say(`live, chunk ${message.data.chunk_index}`);
+    });
+    reactor.on("error", (error) => say(`error: ${error.code ?? ""} ${error.message ?? error}`));
+    reactor.on("statusChanged", (status) => {
+      say(status);
+      if (status === "ready" && !started) play(story.start);
+    });
+    say("connecting");
+    await reactor.connect(session.token);
+    $("stop").disabled = false;
+  } catch (error) {
+    say("failed: " + error.message);
+    $("begin").disabled = false;
+  }
+}
+
+async function stop() {
+  clearTimeout(timer);
+  $("choices").replaceChildren();
+  if (reactor) await reactor.disconnect(); // ends the session, which stops billing
+  reactor = undefined; started = false; runEnded = false;
+  $("begin").disabled = false; $("stop").disabled = true;
+  say("stopped");
+}
+
+$("begin").onclick = begin;
+$("stop").onclick = stop;
+addEventListener("pagehide", () => reactor?.disconnect());
+</script>
+</body>
+</html>

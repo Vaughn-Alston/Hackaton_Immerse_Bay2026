@@ -1,0 +1,13 @@
+{
+  "name": "butterflyeffect-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "zod": "latest"
+  }
+}

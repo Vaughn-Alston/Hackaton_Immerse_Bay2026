@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "1.0",
+  "contextId": "the-ripple-context",
+  "description": "Canonical context resources for The Ripple interactive living story.",
+  "loadOrder": [
+    "story",
+    "characters",
+    "monsters",
+    "emotions",
+    "actions",
+    "interactions",
+    "perspectives"
+  ],
+  "resources": {
+    "story": "./story.json",
+    "characters": "./characters.json",
+    "monsters": "./monsters.json",
+    "emotions": "./emotions.json",
+    "actions": "./actions.json",
+    "interactions": "./interactions.json",
+    "perspectives": "../perspectives.json"
+  },
+  "ownership": {
+    "engine": [
+      "runtime character state",
+      "Monster state transitions",
+      "global Monster count",
+      "voice-response classification",
+      "main and side story membership",
+      "interaction sequencing"
+    ],
+    "visko": [
+      "visual representation of approved state",
+      "continuous scene transitions",
+      "picture-driven audio"
+    ]
+  },
+  "promptProjectionPolicy": {
+    "initial": "Select canonical subject, active Monster state, scene context, and perspective.",
+    "transition": "Select exactly one approved visible action or state change.",
+    "correction": "Select only the visual property that must be restored.",
+    "neverSend": [
+      "internal IDs",
+      "global counters",
+      "classifier confidence",
+      "hidden state-machine fields",
+      "side-story data not currently visible"
+    ]
+  }
+}
