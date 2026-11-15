@@ -3,7 +3,7 @@
 // URL switches:  ?mock=1   no Reactor sessions (placeholder pictures, nothing billed)
 //                ?fast=1   very short holds, for testing
 //                ?auto=NPP scripted picks (N a harsh choice, P the kind one), repeating
-//                ?turns=4  how many choices the player makes before evening comes
+//                ?turns=10 how many choices the player makes before evening comes
 //                ?live=3   how many side windows get their own live video (default: all 8)
 
 import * as THREE from "three";
@@ -11,7 +11,7 @@ import { XRButton } from "three/addons/webxr/XRButton.js";
 import { World, FULL, SMALL, NONE, AI_SIDE_STORY } from "./state.js";
 import {
   CAST, EPISODE, scenarioFor, validChoices, captionFor, afterFor,
-  soloPrompt, encounterPrompt, outcomePrompt, eveningPrompt, localSideBeat,
+  soloPrompt, encounterPrompt, outcomePrompt, exitPrompt, eveningPrompt, localSideBeat,
 } from "./content.js";
 import { LiveStream } from "./stream.js";
 
@@ -19,15 +19,16 @@ const params = new URLSearchParams(location.search);
 const MOCK = params.has("mock");
 const FAST = params.has("fast");
 const AUTO = (params.get("auto") ?? "").toUpperCase();
-const TURNS = Number(params.get("turns") ?? 4);
+const TURNS = Number(params.get("turns") ?? 10);
 const HOLD = FAST ? 250 : 11000;       // how long a beat plays before the story moves on
 const SIDE_EVERY = FAST ? 400 : 30000; // pause between AI side-story beats
+const EXIT = FAST ? 100 : 5000;         // how long we watch someone leave before their side window appears
 const SETTLE = FAST ? 0 : 9000;         // how long a new moment plays before the main picture holds for the choice
 const MAX_CHARACTERS = 20;
 // Every live window is its own Reactor session, billed per second while it is open.
 const LIVE_SIDES = Number(params.get("live") ?? 8);
 // The day, one step per choice. The opening is 7:30 AM and dinner is 6:30 PM.
-const CLOCK = ["7:45 AM", "9:10 AM", "11:30 AM", "1:15 PM", "3:40 PM", "5:20 PM"];
+const CLOCK = ["7:45 AM", "8:50 AM", "9:40 AM", "10:30 AM", "11:30 AM", "12:40 PM", "1:45 PM", "3:00 PM", "4:15 PM", "5:30 PM"];
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -152,7 +153,19 @@ class Panel {
   }
   highlight(on) { this.border.material.color.set(on ? 0x7a45c8 : 0x2a2a30); }
 
+  /** Starts the window at the main window and lets it glide out to its place. */
+  glideTo(position, rotationY) {
+    this.home = { position, rotationY };
+    this.group.position.set(0, 0, 0.12);
+    this.group.scale.setScalar(0.35);
+  }
+
   tick(time) {
+    if (this.home) {
+      this.group.position.lerp(this.home.position, 0.07);
+      this.group.rotation.y = THREE.MathUtils.lerp(this.group.rotation.y, this.home.rotationY, 0.07);
+      this.group.scale.setScalar(THREE.MathUtils.lerp(this.group.scale.x, 1, 0.07));
+    }
     for (const m of this.monsters) {
       m.userData.size = THREE.MathUtils.lerp(m.userData.size ?? 0, m.userData.target, 0.06);
       m.scale.setScalar(Math.max(m.userData.size, 0.0001) * (1 + 0.04 * Math.sin(time * 0.004)));
@@ -179,14 +192,14 @@ const sidePanels = new Map(); // characterId -> { panel, slot, detail, stream, c
 
 // ---------------------------------------------------------------- choices
 
-// Three identical plates in a row under the caption. Point and pull the trigger, click, or press 1 / 2 / 3.
+// Three identical plates in one row under the caption. Point and pull the trigger, click, or press 1 / 2 / 3.
 const choiceButtons = [0, 1, 2].map((index) => {
-  const plate = new TextPlate(0.52, 0.34, 640);
-  const border = new THREE.Mesh(new THREE.PlaneGeometry(0.535, 0.355), new THREE.MeshBasicMaterial({ color: 0x3a3a40 }));
+  const plate = new TextPlate(0.72, 0.42, 720);
+  const border = new THREE.Mesh(new THREE.PlaneGeometry(0.735, 0.435), new THREE.MeshBasicMaterial({ color: 0x3a3a40 }));
   border.position.z = -0.004;
   const group = new THREE.Group();
   group.add(border, plate.mesh);
-  group.position.set((index - 1) * 0.54, -1.2, 0.02);
+  group.position.set((index - 1) * 0.75, -1.23, 0.02);
   group.visible = false;
   plate.mesh.userData.choiceIndex = index;
   stage.add(group);
@@ -200,7 +213,7 @@ function drawChoice(index, lit) {
   const button = choiceButtons[index];
   button.plate.draw([
     { text: String(index + 1), size: 30, color: "#8d8a84", bold: true },
-    { text: pendingChoice?.choices[index].label ?? "", size: 50 },
+    { text: pendingChoice?.choices[index].label ?? "", size: 56 },
   ], lit ? "rgba(44,36,60,0.96)" : "rgba(18,18,22,0.92)");
   button.border.material.color.set(lit ? 0xb48cff : 0x3a3a40);
 }
@@ -220,12 +233,6 @@ function offerChoices(choices) {
     pendingChoice = { choices, resolve };
     hovered = -1;
     choiceButtons.forEach((button, index) => { drawChoice(index, false); button.group.visible = true; });
-    $("choices").replaceChildren(...choices.map((c, index) => {
-      const element = document.createElement("button");
-      element.textContent = `${index + 1}. ${c.label}`;
-      element.onclick = () => choose(index);
-      return element;
-    }));
   });
 }
 
@@ -235,7 +242,6 @@ function choose(index) {
   pendingChoice = null;
   hovered = -1;
   for (const button of choiceButtons) button.group.visible = false;
-  $("choices").replaceChildren();
   resolve(choices[index]);
 }
 
@@ -289,6 +295,8 @@ const world = new World();
 let main, health = {};
 let running = false, phase = "day", clock = "7:30 AM", engagedId = null, otherId = null, autoIndex = 0, sideTurn = 0;
 let family = []; // [mom, dad, child]
+const heldBack = new Set(); // still leaving the main scene: no side window yet
+const busy = new Set();     // in the middle of a side-story interaction
 let hudStatus = "";
 
 /** Adds someone new to the world: the director's invention if it gave one, otherwise the next unused cast member. */
@@ -307,7 +315,7 @@ function newCharacter(custom, kid = false) {
  * so storylines can cross; otherwise a new face, and once the cast runs out, someone already met.
  */
 function someoneToMeet(actor, custom, existingId) {
-  const free = (c) => c !== actor && c.characterId !== world.mainId && c.characterId !== engagedId;
+  const free = (c) => c !== actor && c.characterId !== world.mainId && c.characterId !== engagedId && !busy.has(c.characterId);
   const known = existingId ? world.get(existingId) : null;
   if (known && free(known)) return known;
   const others = world.list().filter(free);
@@ -337,15 +345,14 @@ function refresh() {
   for (const c of world.list()) {
     // During the day a side window exists only while its character carries a Monster.
     // In the evening everyone we met, outside the family, gets a window.
-    const isSide = evening ? !isFamily(c) : c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE;
+    const isSide = evening ? !isFamily(c) : c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE && !heldBack.has(c.characterId);
     if (isSide && !sidePanels.has(c.characterId) && freeSlots.length) {
       const slot = freeSlots.shift();
       const panel = new Panel(0.78);
       const [degrees, y] = SLOTS[slot];
       const angle = THREE.MathUtils.degToRad(degrees);
       // The viewer stands at (0, 0, VIEW_DISTANCE) in stage space.
-      panel.group.position.set(Math.sin(angle) * VIEW_DISTANCE, y, VIEW_DISTANCE - Math.cos(angle) * VIEW_DISTANCE);
-      panel.group.rotation.y = -angle;
+      panel.glideTo(new THREE.Vector3(Math.sin(angle) * VIEW_DISTANCE, y, VIEW_DISTANCE - Math.cos(angle) * VIEW_DISTANCE), -angle);
       stage.add(panel.group);
       const entry = { panel, slot, detail: "", stream: null, connected: Promise.resolve(false), live: false };
       if ([...sidePanels.values()].filter((e) => e.stream).length < LIVE_SIDES) {
@@ -366,7 +373,7 @@ function refresh() {
         // Monster gone: let the dissolve play, then the window leaves the network.
         entry.closing = true;
         entry.panel.setMonster(NONE);
-        entry.panel.label(c.name, entry.detail || "no monster", entry.live);
+        entry.panel.label(c.name, entry.detail, entry.live);
         setTimeout(() => { if (sidePanels.get(c.characterId) === entry && entry.closing) closeSide(c.characterId); refresh(); }, HOLD);
       }
     }
@@ -376,7 +383,7 @@ function refresh() {
     if (entry.closing && (evening || c.monsterState !== NONE)) entry.closing = false; // caught a new one, or evening came
     if (entry.closing) continue;
     entry.panel.setMonster(c.monsterState);
-    entry.panel.label(c.name, entry.detail || describe(c), entry.live);
+    entry.panel.label(c.name, entry.detail, entry.live); // just the name until an interaction has played
   }
 
   if (evening) {
@@ -451,16 +458,36 @@ async function proposeSideBeat(carriers) {
   return { actor, beat: { action: local.action, place: local.scenario.place, beat: local.beat, other: null, otherId: "", caption: "" } };
 }
 
-/** One step in one side story. The director only proposes; the state manager decides what changes. */
+/** What the rules will do with this interaction, worked out without changing anything. */
+function predictTypes(actor, other, action) {
+  if (action === "NEGATIVE") return [other.monsterState === NONE ? "MONSTER_SPAWNED" : "MONSTER_REGROWN"];
+  return [actor.monsterState === SMALL ? "MONSTER_REMOVED" : "MONSTER_SHRUNK"];
+}
+
+/**
+ * One step in one side story. The director only proposes; the state manager decides what changes.
+ * The interaction plays in the window first. Its result (label, Monster, world count) is only
+ * applied and shown once it has played.
+ */
 async function sideBeat() {
-  const carriers = world.list().filter((c) => c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE && !(phase === "dinner" && isFamily(c)));
+  const carriers = world.list().filter((c) => c.storyMode === AI_SIDE_STORY && c.monsterState !== NONE
+    && !heldBack.has(c.characterId) && !(phase === "dinner" && isFamily(c)));
   if (!carriers.length) return;
   sideTurn++;
+  let reserved = [];
   try {
     const { actor, beat } = await proposeSideBeat(carriers);
     if (!running || actor.storyMode !== AI_SIDE_STORY || actor.monsterState === NONE) return;
     const other = someoneToMeet(actor, beat.other, beat.otherId);
     if (!other || (phase === "dinner" && isFamily(other))) return;
+    reserved = [actor.characterId, other.characterId];
+    for (const id of reserved) busy.add(id);
+
+    actor.currentLocation = beat.place;
+    showSide(actor, outcomePrompt(actor, other, beat.place, beat.action, predictTypes(actor, other, beat.action), beat.beat));
+    await sleep(HOLD);
+    if (!running || actor.storyMode !== AI_SIDE_STORY || actor.monsterState === NONE) return; // the story moved on meanwhile
+
     const types = world.resolve(actor.characterId, other.characterId, beat.action, beat.caption).map((e) => e.type);
     const entry = sidePanels.get(actor.characterId);
     if (entry) {
@@ -470,11 +497,10 @@ async function sideBeat() {
       const what = beat.caption || (beat.action === "NEGATIVE" ? `takes it out on ${other.name}` : `is kind to ${other.name}`);
       entry.detail = `${what.replace(/\.$/, "")}. ${progress}`.trim();
     }
-    actor.currentLocation = beat.place;
     refresh();
-    showSide(actor, outcomePrompt(actor, other, beat.place, beat.action, types, beat.beat));
     if (types.includes("SIDE_STORY_CREATED")) showSide(other, soloPrompt(other, "walks on alone, hurt and trying not to show it"));
   } catch (error) { console.warn("Side story beat failed:", error); }
+  finally { for (const id of reserved) busy.delete(id); }
 }
 
 async function sideLoop() {
@@ -545,14 +571,20 @@ async function sceneKitchen() {
 
   setCaption("MOM: “Why didn't you start the dishwasher last night?”", "DAD: “Sorry. I forgot.”  He cleaned the whole kitchen last night. He doesn't say so.");
   otherId = mom.characterId; // the main window now follows Dad; Mom is the one he faces
+  heldBack.add(mom.characterId); // her side window waits until we have seen the scene break up
   const types = world.resolve(mom.characterId, dad.characterId, "NEGATIVE", "the dishwasher").map((e) => e.type);
   await main.show(outcomePrompt(mom, dad, EPISODE.kitchenPlace, "NEGATIVE", types, "turns from the open dishwasher and asks a sharp, tired question"));
   await sleep(HOLD);
 
-  setCaption("A new monster grows on Dad's shoulder. Mom keeps hers. Now there are two.", "The story follows Dad. Mom's morning goes on without us.");
+  setCaption("A new monster grows on Dad's shoulder. Mom keeps hers. Now there are two.", "Dad turns away without another word.");
+  await main.show(EPISODE.dadLeavesPrompt(mom, dad));
+  await sleep(HOLD * 0.7);
+  setCaption("The story follows Dad.", "Mom's morning goes on without us.");
+  heldBack.delete(mom.characterId);
+  refresh(); // now her Living Window appears and drifts out to the side
   showSide(mom, EPISODE.momAlonePrompt(mom));
   sideLoop();
-  await sleep(HOLD * 0.7);
+  await sleep(EXIT);
   otherId = null;
   engagedId = child.characterId;
   return { actorId: dad.characterId, recipient: child, scenario: EPISODE.hallway }; // Scene 2 is fixed
@@ -592,15 +624,24 @@ async function theDay(firstPlan) {
 
     const picked = await chooseFor(actor, scenario);
     if (!running || !picked) return;
-    if (picked.action === "NEGATIVE") otherId = actor.characterId;
+    const leaves = picked.action === "NEGATIVE";
+    if (leaves) { otherId = actor.characterId; heldBack.add(actor.characterId); }
     const types = world.resolve(actor.characterId, recipient.characterId, picked.action, captionFor(scenario, actor, recipient)).map((e) => e.type);
     setStatus("");
     setCaption(afterFor(picked, actor, recipient), outcomeCaption(actor, recipient, picked.action, types));
     await main.show(outcomePrompt(actor, recipient, scenario.place, picked.action, types, picked.beat));
-    if (picked.action === "NEGATIVE") showSide(actor, soloPrompt(actor, "walks away alone, still wound tight"));
     engagedId = null;
     planned = world.main && turn + 1 < TURNS ? planEncounter(world.main) : Promise.resolve(null);
     await sleep(HOLD);
+    if (leaves) {
+      // Watch them go before their own Living Window appears.
+      setCaption(`${actor.name} walks away.`, `${actor.name}'s day goes on without us.`);
+      await main.show(exitPrompt(actor, recipient, scenario.place));
+      await sleep(EXIT);
+      heldBack.delete(actor.characterId);
+      refresh();
+      showSide(actor, soloPrompt(actor, "walks on alone, still wound tight"));
+    }
     otherId = null;
     refresh();
   }
@@ -700,7 +741,6 @@ async function stop(message = "Stopped.") {
   running = false;
   if (pendingChoice) { pendingChoice.resolve(null); pendingChoice = null; }
   for (const button of choiceButtons) button.group.visible = false;
-  $("choices").replaceChildren();
   for (const entry of sidePanels.values()) entry.connected.then(() => entry.stream?.close());
   await main?.close();
   setStatus(message + " Reload the page to play again.");

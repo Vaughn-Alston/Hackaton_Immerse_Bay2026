@@ -54,6 +54,11 @@ export const EPISODE = {
     return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} pulls open the dishwasher and finds it full of dirty dishes from the night before; her shoulders sink, tired and frustrated. ${monsterOn(mom, "her")}. Behind her, ${dad.appearanceDescription} is getting ready to leave for work, checking his bag. ${monsterOn(dad, "his")}. Medium-wide two-shot. ${STYLE}`;
   },
 
+  /** Scene 1, the scene breaking up: Dad walks out, and the camera goes with him. */
+  dadLeavesPrompt(mom, dad) {
+    return `${this.kitchenPlace}. ${cap(dad.appearanceDescription)} picks up his bag, turns away and walks out of the kitchen toward the hallway, hurt and trying not to show it. ${monsterOn(dad, "his")}. Behind him, out of focus, ${mom.appearanceDescription} stays by the open dishwasher. ${monsterOn(mom, "her")}. The camera follows him from the front. ${STYLE}`;
+  },
+
   /** Scene 1, after: Mom alone, for her side window. */
   momAlonePrompt(mom) {
     return `${this.kitchenPlace}. ${cap(mom.appearanceDescription)} stands alone at the counter, loading the last dishes with short hard movements, jaw tight. ${monsterOn(mom, "her")}. Medium shot. ${STYLE}`;
@@ -217,6 +222,11 @@ export function validChoices(choices) {
 /** A character on their own, between encounters. */
 export function soloPrompt(c, mood = "walks alone, jaw tight, shoulders tense, lost in a bad mood") {
   return `A city street in daylight. ${cap(c.appearanceDescription)} ${mood}. ${monsterOn(c)}. Slow tracking shot from the front and slightly to the side, shoulders and face clearly visible. ${STYLE}`;
+}
+
+/** The one who was harsh walks out of the scene; the camera stays with the person left behind. */
+export function exitPrompt(leaver, stayer, place) {
+  return `${place}. ${cap(leaver.appearanceDescription)} turns away and walks out of frame without looking back. ${monsterOn(leaver)}. The camera stays on ${stayer.appearanceDescription}, left standing there, watching them go. ${monsterOn(stayer)}. Medium shot, steady camera. ${STYLE}`;
 }
 
 /**

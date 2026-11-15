@@ -14,10 +14,6 @@
   #bar button:hover:not(:disabled) { border-color: #b48cff; }
   #bar button:disabled { opacity: .45; cursor: default; }
   #status { color: #b9b6ae; }
-  #choices { position: fixed; left: 0; right: 0; bottom: 44px; display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px; }
-  #choices button { font: inherit; text-align: left; padding: 9px 12px; border-radius: 8px; border: 1px solid #3a3a40;
-                    background: rgba(24, 24, 28, .92); color: inherit; cursor: pointer; flex: 1 1 260px; }
-  #choices button:hover { border-color: #b48cff; }
   #caption { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px; background: rgba(12, 12, 14, .8); color: #b9b6ae; }
 </style>
 <script type="importmap">
@@ -35,7 +31,6 @@
   <span id="status">idle</span>
 </div>
 <div id="caption"></div>
-<div id="choices"></div>
 <script type="module" src="./main.js"></script>
 </body>
 </html>
